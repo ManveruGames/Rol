@@ -871,29 +871,28 @@ function logPush(clase,quien,texto,tit){
   if(ESTADO.log.length>60) ESTADO.log=ESTADO.log.slice(-60);
 }
 function anfIniciarPartida(){
-  const e=esc();
-  ESTADO.fase='eligiendo';
-  ESTADO.banner={ico:e.ico, nom:e.nom.toUpperCase()};
-  anfDifundir();
-  // espera a que todos elijan; el anfitrión vigila y habilita el arranque real
-  esperarElecciones();
+  const conectados=ESTADO.jugadores.filter(j=>j.conectado);
+  if(conectados.length<3){ alert('Se necesitan al menos 3 jugadores conectados.'); return; }
+  const sinPersonaje=conectados.filter(j=>!j.arqId);
+  if(sinPersonaje.length>0){
+    alert('Faltan por elegir personaje: '+sinPersonaje.map(j=>j.nombre).join(', ')+'. Pídeles que confirmen su personaje antes de comenzar.');
+    return;
+  }
+  // Todos los conectados ya tienen personaje: arrancamos directo.
+  arrancarNarracion();
 }
 function esperarElecciones(){
+  // (ya no se usa: el arranque es directo desde anfIniciarPartida)
   const todos=ESTADO.jugadores.filter(j=>j.conectado);
-  const listos=todos.every(j=>j.arqId);
-  if(listos && todos.length>=3){
-    arrancarNarracion();
-  }else{
-    // re-chequear cuando lleguen elecciones (anfRecibe llama anfDifundir → render)
-    ESTADO._esperando=true;
-  }
+  if(todos.length>=3 && todos.every(j=>j.arqId)) arrancarNarracion();
 }
 function arrancarNarracion(){
   ESTADO._esperando=false;
   ESTADO.fase='jugando';
+  const e=esc();
+  ESTADO.banner={ico:e.ico, nom:e.nom.toUpperCase()};
   ESTADO.log=[];
   ESTADO.escIdx=-1; ESTADO.turnoIdx=0; ESTADO.actoActual=0;
-  const e=esc();
   logPush('narrador','📜 Narrador', e.intro);
   if(e.ruta){ ESTADO.ui={modo:'ruta', data:null}; anfDifundir(); }
   else { anfDifundir(); anfAvanzar(); }
@@ -1050,7 +1049,9 @@ function unirseSala(){
 }
 function jugRecibe(msg){
   if(msg.t==='tuId'){ MI_ID=msg.id; ESTADO.escId=msg.escId;
+    if(typeof msg.fase!=='undefined') ESTADO.fase=msg.fase;
     const e=esc(); if(e) document.documentElement.style.setProperty('--acc',e.color);
+    render();
   }
   else if(msg.t==='estado'){
     Object.assign(ESTADO, msg.estado);
@@ -1133,7 +1134,19 @@ let _logDibujado=0, _uiFirma='';
 function render(){
   // --- Fase lobby / eligiendo escenario ---
   if(ESTADO.fase==='lobby'){
-    if(ROL==='jugador'){ irA('scrElegirPj'); }  // el jugador espera aquí hasta que empiece la elección
+    if(ROL==='jugador'){
+      irA('scrElegirPj');
+      const yo=ESTADO.jugadores.find(j=>j.id===MI_ID);
+      if(yo && yo.arqId){
+        // ya confirmó: mostrar su elección y permitir cambiarla
+        document.getElementById('estElegir').textContent='¡Listo! Esperando a que el anfitrión comience…';
+        document.getElementById('btnConfirmarPj').disabled=true;
+        document.getElementById('btnConfirmarPj').textContent='✓ Confirmado';
+        document.getElementById('btnCambiarPj').style.display='inline-block';
+      } else {
+        montarElegirPj();  // aún no eligió: mostrar opciones
+      }
+    }
     if(ROL==='anfitrion') refrescarLobby();
     return;
   }

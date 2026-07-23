@@ -121,7 +121,11 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
   <div class="panel" style="text-align:center">
     <h3 style="font-size:1rem;letter-spacing:.15em;color:var(--arena)">SOY EL ANFITRIÓN</h3>
     <p style="color:var(--arena);font-size:.9rem;margin:8px 0 14px">Creo la sala, elijo la historia y comparto el tablero.</p>
-    <button class="btn" onclick="crearSala()">Crear sala</button>
+    <button class="btn" onclick="crearSala()">Crear sala nueva</button>
+    <div id="zonaContinuar" style="display:none;margin-top:14px">
+      <button class="btn secundario" onclick="reanudarPartida()">↻ Continuar partida guardada</button>
+      <div class="estado-red" id="infoGuardada"></div>
+    </div>
   </div>
   <div class="panel" style="text-align:center">
     <h3 style="font-size:1rem;letter-spacing:.15em;color:var(--arena)">ME UNO A UNA SALA</h3>
@@ -178,6 +182,7 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
     <div class="detalle-arq" id="elegirDet" style="display:none"></div>
   </div>
   <div class="centro">
+    <button class="btn secundario" id="btnCambiarPj" onclick="jugCambiarPj()" style="display:none">← Cambiar</button>
     <button class="btn" id="btnConfirmarPj" onclick="jugConfirmarPj()" disabled>Confirmar</button>
   </div>
   <div class="estado-red" id="estElegir">Esperando a que el anfitrión inicie…</div>
@@ -230,6 +235,10 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
 <script>
 
 /* ==================== PERSONAJES ==================== */
+/* Carpeta donde están las imágenes de personajes en tu repositorio.
+   Tu carpeta en GitHub se llama "Imagenes". Si algún día la renombras
+   a "img", cambia solo esta línea. */
+const CARPETA_IMG = 'Imagenes';
 const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carisma:'Carisma', fe:'Fe'};
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
@@ -674,7 +683,7 @@ function pintarJugadores(turnoNombre){
     d.className='pj'+(j.nombre===turnoNombre?' turno':'')+(j.animo===0?' abatido':'')+(j.conectado===false?' desconectado':'');
     const s=a.stats;
     const yo = (j.id===MI_ID)?' 👈':'';
-    const imgSrc = `img/${j.arqId}-${j.genero}.jpg`;
+    const imgSrc = `${CARPETA_IMG}/${j.arqId}-${j.genero}.jpg`;
     d.innerHTML=`<div class="retrato"><img src="${imgSrc}" alt="${j.genero==='m'?a.m:a.f}" loading="lazy" onerror="this.style.display='none';this.parentElement.textContent='${a.ico}'"></div>
       <div class="nom">${j.nombre}${yo}</div>
       <div class="arq">${j.genero==='m'?a.m:a.f}</div>
@@ -708,27 +717,59 @@ const PREFIJO='sendasfe-';   // namespace para PeerJS
 function anfDifundir(){   // el anfitrión manda el estado completo a todos
   const paquete=JSON.stringify({t:'estado', estado:ESTADO});
   conexiones.forEach(c=>{ try{ if(c.open) c.send(paquete); }catch(e){} });
+  guardarPartida();  // persistir en el teléfono del anfitrión
   render();  // el anfitrión también re-renderiza su vista
 }
+/* ===== Guardado persistente (solo anfitrión) ===== */
+const CLAVE_GUARDADO='aventurasbiblicas_partida';
+function guardarPartida(){
+  if(ROL!=='anfitrion') return;
+  try{
+    // guardamos solo lo esencial (sin campos temporales que empiezan con _)
+    const limpio={};
+    for(const k in ESTADO){ if(!k.startsWith('_')) limpio[k]=ESTADO[k]; }
+    localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({
+      guardadoEn: Date.now(), codigo: ESTADO.codigo, estado: limpio,
+      escenaPend: ESTADO._escenaPend||null, tirada: ESTADO._tirada||null
+    }));
+  }catch(e){}
+}
+function hayPartidaGuardada(){
+  try{ const r=localStorage.getItem(CLAVE_GUARDADO); if(!r) return null;
+    const d=JSON.parse(r);
+    // solo ofrecer si la partida estaba en curso (no en lobby ni terminada)
+    if(d.estado && (d.estado.fase==='jugando'||d.estado.fase==='eligiendo')) return d;
+    return null;
+  }catch(e){ return null; }
+}
+function borrarPartidaGuardada(){ try{ localStorage.removeItem(CLAVE_GUARDADO); }catch(e){} }
 function jugEnviar(obj){  // el jugador manda una acción al anfitrión
   try{ if(connAnf&&connAnf.open) connAnf.send(JSON.stringify(obj)); }catch(e){}
 }
 
-/* ==================== ANFITRIÓN: crear sala ==================== */
-function crearSala(){
+/* ==================== ANFITRIÓN: crear o reanudar sala ==================== */
+function crearSala(guardada){
   ROL='anfitrion'; MI_ID='ANFITRION';
-  const codigo=genCodigo();
+  const codigo = guardada? guardada.codigo : genCodigo();
   ESTADO.codigo=codigo;
   peer=new Peer(PREFIJO+codigo, {debug:1});
   peer.on('open', ()=>{
     document.getElementById('codigoSala').textContent=codigo;
-    // el anfitrión elige escenario primero
-    irA('scrEscena');
+    if(guardada){
+      // Reanudar: restaurar el estado, marcar a todos como desconectados hasta que vuelvan
+      Object.assign(ESTADO, guardada.estado);
+      ESTADO._escenaPend = guardada.escenaPend || null;
+      ESTADO._tirada = guardada.tirada || null;
+      ESTADO.jugadores.forEach(j=>{ j.conectado=false; });
+      const e=esc(); if(e) document.documentElement.style.setProperty('--acc',e.color);
+      _logDibujado=0;
+      render();  // salta directo al juego en el punto guardado
+    }else{
+      irA('scrEscena');  // partida nueva: elegir escenario
+    }
   });
   peer.on('error', e=>{
-    if(e.type==='unavailable-id'){ // código en uso, reintenta
-      peer.destroy(); crearSala(); return;
-    }
+    if(e.type==='unavailable-id'){ peer.destroy(); crearSala(guardada); return; }
     alert('No se pudo crear la sala: '+e.type+'. Revisa tu conexión.');
   });
   peer.on('connection', conn=>{
@@ -738,6 +779,11 @@ function crearSala(){
       conn.on('close', ()=>anfDesconecta(conn));
     });
   });
+}
+function reanudarPartida(){
+  const g=hayPartidaGuardada();
+  if(!g){ alert('No hay ninguna partida guardada para continuar.'); return; }
+  crearSala(g);
 }
 function anfRecibe(conn, msg){
   if(msg.t==='hola'){                 // jugador se presenta
@@ -757,6 +803,11 @@ function anfRecibe(conn, msg){
     if(j && !ESTADO.jugadores.some(o=>o.id!==j.id && o.arqId===msg.arqId)){
       j.genero=msg.genero; j.arqId=msg.arqId;
     }
+    refrescarLobby(); anfDifundir();
+  }
+  else if(msg.t==='liberaPj'){        // jugador quiere volver a elegir
+    const j=ESTADO.jugadores.find(x=>x.id===msg.id);
+    if(j && ESTADO.fase!=='jugando'){ j.arqId=null; }
     refrescarLobby(); anfDifundir();
   }
   else if(msg.t==='tirada'){          // jugador tiró sus dados
@@ -859,8 +910,11 @@ function quienActua(escena){
   let j;
   if(escena.pref) j=ESTADO.jugadores.find(x=>x.arqId===escena.pref && x.conectado);
   if(!j){
-    const activos=ESTADO.jugadores.filter(x=>x.conectado);
-    j=activos[ESTADO.turnoIdx%activos.length]; ESTADO.turnoIdx++;
+    // preferimos jugadores conectados; si no hay ninguno, usamos todos (el anfitrión tirará por ellos)
+    let pool=ESTADO.jugadores.filter(x=>x.conectado);
+    if(pool.length===0) pool=ESTADO.jugadores;
+    if(pool.length===0) return null;
+    j=pool[ESTADO.turnoIdx%pool.length]; ESTADO.turnoIdx++;
   }
   return j;
 }
@@ -871,6 +925,7 @@ function anfAvanzar(){
   const escena=escenas[ESTADO.escIdx];
   if(escena.acto!==ESTADO.actoActual) anfDescanso(escena.acto);
   const j=quienActua(escena);
+  if(!j){ ESTADO.ui={modo:'espera',data:null}; anfDifundir(); return; }
   if(j.animo<=0){
     const ayudante=ESTADO.jugadores.find(x=>x!==j&&x.animo>0&&x.conectado)||j;
     j.animo=1;
@@ -907,6 +962,13 @@ function prepararTiradaAnf(fuente, j, escOrig){
   const {mod,notas}=modTotal(j, fuente.atr, fuente.tag||escOrig.tag);
   ESTADO._tirada={jugId:j.id, atr:fuente.atr, tag:fuente.tag||escOrig.tag, e:fuente.e, p:fuente.p, f:fuente.f, mod, notas};
   ESTADO.ui={modo:'tirada', jugId:j.id, jugNombre:j.nombre, atr:fuente.atr, mod, notas, estado:'porTirar'};
+}
+/* El anfitrión tira por un jugador (ausente o para no esperar) */
+function anfTirarPorJugador(){
+  const d1=1+Math.floor(Math.random()*6), d2=1+Math.floor(Math.random()*6);
+  const j=ESTADO.jugadores.find(x=>x.id===ESTADO._tirada.jugId);
+  if(j) logPush('sistema','🎲 Dados', `El narrador tira por ${j.nombre}`);
+  anfProcesarTirada(d1,d2);
 }
 function anfAplicarEleccion(idx){
   const escena=ESTADO._escenaPend; if(!escena) return;
@@ -958,6 +1020,7 @@ function anfFinalizar(){
   let epi=e.epilogo.replace('{lista}',lista);
   if(e.ruta) epi=epi.replace('{rutaFin}', ESTADO.rutaElegida==='A'?e.finA:e.finB);
   ESTADO.fase='fin'; ESTADO.epilogo=epi; ESTADO.finTitulo=e.nom;
+  borrarPartidaGuardada();  // la aventura terminó: ya no hay que retomarla
   anfDifundir();
 }
 
@@ -1017,7 +1080,7 @@ function montarElegirPj(){
   const det=document.getElementById('elegirDet');
   const a=ARQUETIPOS.find(x=>x.id===jugTmp.arqId);
   if(a){ det.style.display='block'; const s=a.stats;
-    const imgSrc=`img/${a.id}-${jugTmp.genero}.jpg`;
+    const imgSrc=`${CARPETA_IMG}/${a.id}-${jugTmp.genero}.jpg`;
     det.innerHTML=`<div class="retrato-grande"><img src="${imgSrc}" alt="${jugTmp.genero==='m'?a.m:a.f}" onerror="this.parentElement.style.display='none'"></div>
       ✋ <b style="color:var(--pergamino)">Habilidad:</b> ${a.hab}<br>⚖️ <b style="color:var(--pergamino)">Debilidad:</b> ${a.deb}
       <div class="stats">FUE ${f(s.fuerza)} · AGI ${f(s.agilidad)} · ING ${f(s.ingenio)} · CAR ${f(s.carisma)} · FE ${f(s.fe)}</div>`;
@@ -1027,7 +1090,19 @@ function montarElegirPj(){
 function jugConfirmarPj(){
   jugEnviar({t:'eligePj', id:MI_ID, genero:jugTmp.genero, arqId:jugTmp.arqId});
   document.getElementById('btnConfirmarPj').disabled=true;
-  document.getElementById('estElegir').textContent='¡Listo! Esperando a los demás y al anfitrión…';
+  document.getElementById('btnConfirmarPj').textContent='✓ Confirmado';
+  document.getElementById('btnCambiarPj').style.display='inline-block';
+  document.getElementById('estElegir').textContent='¡Listo! Puedes cambiar mientras la aventura no empiece.';
+}
+function jugCambiarPj(){
+  // permite volver a elegir mientras la partida no haya arrancado
+  jugTmp={genero:jugTmp.genero, arqId:null};
+  jugEnviar({t:'liberaPj', id:MI_ID});  // avisa al anfitrión que libera su arquetipo
+  document.getElementById('btnConfirmarPj').disabled=true;
+  document.getElementById('btnConfirmarPj').textContent='Confirmar';
+  document.getElementById('btnCambiarPj').style.display='none';
+  document.getElementById('estElegir').textContent='Elige de nuevo tu personaje.';
+  montarElegirPj();
 }
 
 /* ==================== JUGADOR: acciones en su turno ==================== */
@@ -1147,8 +1222,29 @@ function render(){
         b.onclick=()=>jugElegir(idx); cont.appendChild(b);
       });
     }else{
-      zEspera.style.display='block';
-      zEspera.textContent=`${ui.jugNombre} decide qué hacer…`;
+      const jt=ESTADO.jugadores.find(x=>x.id===ui.jugId);
+      const desconectado = jt && jt.conectado===false;
+      zEspera.style.display='block'; zEspera.innerHTML='';
+      const txt=document.createElement('div');
+      txt.innerHTML = desconectado
+        ? `⏳ Le toca decidir a <b style="color:var(--acc)">${ui.jugNombre}</b>, pero está desconectado.`
+        : `🗳️ <b style="color:var(--acc)">${ui.jugNombre}</b> decide qué hacer…`;
+      zEspera.appendChild(txt);
+      if(soyAnf){
+        // El anfitrión puede decidir en lugar del jugador ausente
+        const wrap=document.createElement('div'); wrap.style.marginTop='10px';
+        ui.ops.forEach((o,idx)=>{
+          const b=document.createElement('button'); b.className='btn secundario'; b.style.margin='4px';
+          b.textContent=(desconectado?'':'Elegir por '+ui.jugNombre+': ')+o.t;
+          b.onclick=()=>anfAplicarEleccion(idx); wrap.appendChild(b);
+        });
+        if(desconectado) zEspera.appendChild(wrap);
+        else {
+          const det=document.createElement('details'); det.style.marginTop='8px';
+          const sum=document.createElement('summary'); sum.style.cssText='cursor:pointer;color:var(--arena);font-size:.8rem'; sum.textContent='Decidir por este jugador (si no responde)';
+          det.appendChild(sum); det.appendChild(wrap); zEspera.appendChild(det);
+        }
+      }
     }
     return;
   }
@@ -1187,8 +1283,23 @@ function render(){
         zEspera.style.display='block'; zEspera.innerHTML='';
         const b=document.createElement('button'); b.className='btn'; b.textContent='Narrar el resultado ➜';
         b.onclick=anfAceptarTirada; zEspera.appendChild(b);
-      }else{
-        // espera visible bajo los dados
+      }else if(ui.estado==='porTirar'){
+        // Aviso claro de quién debe tirar + opción de saltar turno si está desconectado
+        const jt=ESTADO.jugadores.find(x=>x.id===ui.jugId);
+        const desconectado = jt && jt.conectado===false;
+        zEspera.style.display='block'; zEspera.innerHTML='';
+        const txt=document.createElement('div');
+        txt.innerHTML = desconectado
+          ? `⏳ Le toca a <b style="color:var(--acc)">${ui.jugNombre}</b>, pero está desconectado.`
+          : `🎲 Le toca tirar a <b style="color:var(--acc)">${ui.jugNombre}</b> desde su teléfono…`;
+        zEspera.appendChild(txt);
+        if(soyAnf){
+          const bSkip=document.createElement('button');
+          bSkip.className='btn secundario'; bSkip.style.marginTop='10px';
+          bSkip.textContent = desconectado ? 'Tirar por '+ui.jugNombre+' y seguir' : 'Saltar turno / tirar por este jugador';
+          bSkip.onclick=()=>anfTirarPorJugador();
+          zEspera.appendChild(bSkip);
+        }
       }
     }
     _uiFirma=firma;
@@ -1219,6 +1330,34 @@ function render(){
 document.addEventListener('DOMContentLoaded',()=>{
   const inp=document.getElementById('inpCodigo');
   if(inp) inp.addEventListener('input',()=>{ inp.value=inp.value.toUpperCase(); });
+
+  // Si hay una partida guardada, ofrecer continuarla
+  const g=hayPartidaGuardada();
+  if(g){
+    const zona=document.getElementById('zonaContinuar');
+    if(zona){ zona.style.display='block';
+      const e=ESCENARIOS.find(x=>x.id===g.estado.escId);
+      const fecha=new Date(g.guardadoEn);
+      document.getElementById('infoGuardada').textContent =
+        `${e?e.ico+' '+e.nom:''} · guardada ${fecha.toLocaleDateString()} ${fecha.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})} · código ${g.codigo}`;
+    }
+  }
+});
+
+/* ==================== AVISO AL SALIR ==================== */
+let partidaEnCurso=false;
+// se activa cuando arranca la narración
+(function(){
+  const _arr = arrancarNarracion;
+  arrancarNarracion=function(){ partidaEnCurso=true; return _arr.apply(this,arguments); };
+})();
+window.addEventListener('beforeunload', function(e){
+  // Solo avisar si hay algo que perder (partida en curso o conectado a una sala)
+  if(partidaEnCurso || ROL==='jugador' || (ROL==='anfitrion' && ESTADO.fase==='jugando')){
+    e.preventDefault();
+    e.returnValue='';   // los navegadores muestran su propio texto de confirmación
+    return '';
+  }
 });
 </script>
 </body>

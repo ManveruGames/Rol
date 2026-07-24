@@ -64,6 +64,10 @@ label{font-family:var(--disp);font-size:.72rem;letter-spacing:.18em;color:var(--
 @keyframes aparecer{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .msg .quien{font-family:var(--disp);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--acc);margin-bottom:4px}
 .msg.narrador .cuerpo{color:var(--pergamino)}
+.msg.jugador .quien{color:var(--lampara)}
+.msg.jugador .cuerpo{color:var(--arena);font-style:italic}
+#btnMic.grabando{border-color:var(--rojo)!important;color:var(--rojo)!important;animation:pulso 1.1s infinite}
+@keyframes pulso{0%,100%{box-shadow:0 0 0 0 rgba(184,86,47,.4)}50%{box-shadow:0 0 0 8px rgba(184,86,47,0)}}
 .msg.sistema .cuerpo{color:var(--lampara);font-family:var(--disp);font-size:.85rem;letter-spacing:.08em}
 .msg.leyendo .cuerpo{background:linear-gradient(90deg,rgba(217,164,65,.08),transparent);border-radius:6px;padding:4px 8px;margin:-4px -8px}
 .msg .titEsc{font-family:var(--disp);font-size:.95rem;color:var(--acc);letter-spacing:.1em;margin-bottom:4px}
@@ -207,6 +211,13 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
     </div>
     <div id="zonaDados">
       <div class="pide" id="dadoPide"></div>
+      <div id="campoAccion" style="display:none;margin:10px 0">
+        <div style="display:flex;gap:8px;align-items:stretch">
+          <textarea id="inpAccion" placeholder="Escribe lo que quieres hacer… (o usa el micrófono)" style="flex:1;min-height:52px;background:var(--noche);border:1px solid var(--linea);border-radius:8px;color:var(--pergamino);font-family:var(--body);font-size:1rem;padding:10px;resize:vertical"></textarea>
+          <button id="btnMic" onclick="dictarAccion()" title="Hablar tu acción" style="flex-shrink:0;width:52px;background:transparent;border:1px solid var(--linea);color:var(--arena);border-radius:8px;font-size:1.3rem;cursor:pointer">🎤</button>
+        </div>
+        <div style="font-size:.78rem;color:var(--arena);font-style:italic;margin-top:4px">Cuéntanos tu plan y luego tira los dados. Es opcional, pero le da vida a la historia.</div>
+      </div>
       <div class="dados"><div class="dado" id="d1">?</div><div class="dado" id="d2">?</div></div>
       <div id="resDado"></div>
       <div id="botonesDado">
@@ -650,6 +661,33 @@ function narrar(texto, elem){
   speechSynthesis.speak(u);
 }
 
+/* ==================== DICTADO POR VOZ (acción del jugador) ==================== */
+const _SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let _recon=null, _dictando=false;
+function dictarAccion(){
+  const inp=document.getElementById('inpAccion'), btn=document.getElementById('btnMic');
+  if(!inp||!btn) return;
+  if(!_SR){ alert('Tu navegador no permite dictado por voz. Prueba con Chrome, o escribe tu acción.'); return; }
+  if(_dictando){ if(_recon) _recon.stop(); return; }
+  _recon=new _SR(); _recon.lang='es-MX'; _recon.interimResults=true; _recon.continuous=false;
+  _dictando=true; btn.classList.add('grabando');
+  const base = inp.value ? inp.value+' ' : '';
+  let finalTxt='';
+  _recon.onresult=e=>{
+    let interim='';
+    for(let i=e.resultIndex;i<e.results.length;i++){
+      const t=e.results[i][0].transcript;
+      if(e.results[i].isFinal) finalTxt+=t; else interim+=t;
+    }
+    inp.value=(base+finalTxt+interim).trim();
+  };
+  _recon.onerror=()=>{ btn.classList.remove('grabando'); _dictando=false; };
+  _recon.onend=()=>{ btn.classList.remove('grabando'); _dictando=false; };
+  _recon.start();
+}
+// Ocultar el botón de micrófono si el navegador no lo soporta
+document.addEventListener('DOMContentLoaded',()=>{ if(!_SR){ const b=document.getElementById('btnMic'); if(b) b.style.display='none'; } });
+
 /* ==================== UTILIDADES ==================== */
 const f=n=>(n>=0?'+':'')+n;
 function irA(id){ document.querySelectorAll('.pantalla').forEach(p=>p.classList.remove('activa')); document.getElementById(id).classList.add('activa'); window.scrollTo(0,0); }
@@ -730,7 +768,7 @@ function guardarPartida(){
     for(const k in ESTADO){ if(!k.startsWith('_')) limpio[k]=ESTADO[k]; }
     localStorage.setItem(CLAVE_GUARDADO, JSON.stringify({
       guardadoEn: Date.now(), codigo: ESTADO.codigo, estado: limpio,
-      escenaPend: ESTADO._escenaPend||null, tirada: ESTADO._tirada||null
+      escenaPend: ESTADO._escenaPend||null, tirada: ESTADO._tirada||null, duelo: ESTADO._duelo||null
     }));
   }catch(e){}
 }
@@ -760,6 +798,7 @@ function crearSala(guardada){
       Object.assign(ESTADO, guardada.estado);
       ESTADO._escenaPend = guardada.escenaPend || null;
       ESTADO._tirada = guardada.tirada || null;
+      ESTADO._duelo = guardada.duelo || null;
       ESTADO.jugadores.forEach(j=>{ j.conectado=false; });
       const e=esc(); if(e) document.documentElement.style.setProperty('--acc',e.color);
       _logDibujado=0;
@@ -810,6 +849,9 @@ function anfRecibe(conn, msg){
     if(j && ESTADO.fase!=='jugando'){ j.arqId=null; }
     refrescarLobby(); anfDifundir();
   }
+  else if(msg.t==='accion'){          // jugador escribió/dictó su acción
+    anfRegistrarAccion(msg.texto);
+  }
   else if(msg.t==='tirada'){          // jugador tiró sus dados
     anfProcesarTirada(msg.d1, msg.d2);
   }
@@ -819,6 +861,13 @@ function anfRecibe(conn, msg){
   else if(msg.t==='eleccion'){        // jugador eligió una opción
     anfAplicarEleccion(msg.idx);
   }
+}
+function anfRegistrarAccion(texto){
+  if(!texto || !texto.trim()) return;
+  if(ESTADO._tirada) ESTADO._tirada.accion=texto.trim();
+  const j=ESTADO.jugadores.find(x=>x.id===(ESTADO._tirada&&ESTADO._tirada.jugId));
+  logPush('jugador','🗣️ '+(j?j.nombre:'Jugador'), texto.trim());
+  anfDifundir();
 }
 function anfDesconecta(conn){
   const j=ESTADO.jugadores.find(x=>x.id===conn._pid);
@@ -979,12 +1028,15 @@ function prepararTiradaAnf(fuente, j, escOrig){
   ESTADO._tirada={jugId:j.id, atr:fuente.atr, tag:fuente.tag||escOrig.tag, e:fuente.e, p:fuente.p, f:fuente.f, mod, notas};
   ESTADO.ui={modo:'tirada', jugId:j.id, jugNombre:j.nombre, atr:fuente.atr, mod, notas, estado:'porTirar'};
 }
-/* El anfitrión tira por un jugador (ausente o para no esperar) */
+/* El anfitrión tira por un jugador (ausente o para no esperar): tira ambos dados del duelo */
 function anfTirarPorJugador(){
-  const d1=1+Math.floor(Math.random()*6), d2=1+Math.floor(Math.random()*6);
   const j=ESTADO.jugadores.find(x=>x.id===ESTADO._tirada.jugId);
   if(j) logPush('sistema','🎲 Dados', `El narrador tira por ${j.nombre}`);
-  anfProcesarTirada(d1,d2);
+  const jd1=1+Math.floor(Math.random()*6), jd2=1+Math.floor(Math.random()*6);
+  anfProcesarTirada(jd1,jd2);
+  // e inmediatamente tira el dado del narrador para resolver el duelo
+  const nd1=1+Math.floor(Math.random()*6), nd2=1+Math.floor(Math.random()*6);
+  anfTirarNarrador(nd1,nd2);
 }
 function anfAplicarEleccion(idx){
   const escena=ESTADO._escenaPend; if(!escena) return;
@@ -996,15 +1048,35 @@ function anfAplicarEleccion(idx){
 }
 function anfProcesarTirada(d1,d2){
   const T=ESTADO._tirada; if(!T) return;
-  const total=d1+d2+T.mod;
-  let clasif,cls;
-  if(total>=10){clasif='ÉXITO COMPLETO';cls='exito'}
-  else if(total>=7){clasif='ÉXITO CON COSTO';cls='parcial'}
-  else{clasif='COMPLICACIÓN';cls='fallo'}
-  ESTADO._ultTirada={d1,d2,mod:T.mod,total,clasif,cls};
+  const totalJug=d1+d2+T.mod;
+  // El jugador ya tiró. Ahora falta que el NARRADOR tire su duelo.
+  ESTADO._duelo={ jugD1:d1, jugD2:d2, jugMod:T.mod, jugTotal:totalJug };
   ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
-    estado:'resuelto', d1,d2,total,clasif,cls,
-    puedeRepetir: (ESTADO.jugadores.find(x=>x.id===T.jugId).animo>0)};
+    estado:'esperaNarrador', jugD1:d1, jugD2:d2, jugTotal:totalJug,
+    accion: T.accion||''};
+  anfDifundir();
+}
+/* El narrador tira su dado para el duelo */
+function anfTirarNarrador(nd1,nd2){
+  const T=ESTADO._tirada, D=ESTADO._duelo; if(!T||!D) return;
+  const narrTotal=nd1+nd2;
+  D.narrD1=nd1; D.narrD2=nd2; D.narrTotal=narrTotal;
+  // Duelo: si el jugador iguala o supera al narrador, cumple.
+  let clasif, cls, gano;
+  if(D.jugTotal > narrTotal){ clasif='¡LO LOGRA!'; cls='exito'; gano='exito'; }
+  else if(D.jugTotal === narrTotal){ clasif='LO LOGRA A DURAS PENAS'; cls='parcial'; gano='parcial'; }
+  else { clasif='COMPLICACIÓN'; cls='fallo'; gano='fallo'; }
+  D.clasif=clasif; D.cls=cls; D.gano=gano;
+  // Texto sugerido del guion según el resultado del duelo
+  let sugerido;
+  if(gano==='exito') sugerido=T.e; else if(gano==='parcial') sugerido=T.p; else sugerido=T.f;
+  D.sugerido = (sugerido||'').replaceAll('{n}', ESTADO.turnoNombre);
+  ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
+    estado:'dueloResuelto',
+    jugD1:D.jugD1, jugD2:D.jugD2, jugTotal:D.jugTotal,
+    narrD1:nd1, narrD2:nd2, narrTotal,
+    clasif, cls, gano, sugerido:D.sugerido, accion:T.accion||'',
+    puedeRepetir: (ESTADO.jugadores.find(x=>x.id===T.jugId).animo>0 && gano==='fallo')};
   anfDifundir();
 }
 function anfRepetir(){
@@ -1012,18 +1084,21 @@ function anfRepetir(){
   if(!j||j.animo<=0) return;
   j.animo--;
   logPush('sistema','⚖️ Ánimo', `${j.nombre} gasta 1 ❤️ para intentarlo de nuevo (${j.animo} restantes)`);
-  ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:j.nombre, atr:T.atr, mod:T.mod, notas:T.notas, estado:'porTirar'};
+  ESTADO._duelo=null;
+  ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:j.nombre, atr:T.atr, mod:T.mod, notas:T.notas, estado:'porTirar', accion:T.accion||''};
   anfDifundir();
 }
-function anfAceptarTirada(){    // llamado desde el botón del anfitrión-narrador
-  const T=ESTADO._tirada, R=ESTADO._ultTirada, j=ESTADO.jugadores.find(x=>x.id===T.jugId);
-  logPush('sistema','🎲 Dados', `${j.nombre}: ${R.total} — ${R.clasif}`);
-  let texto, perdida=0;
-  if(R.total>=10) texto=T.e; else if(R.total>=7) texto=T.p; else {texto=T.f; perdida=1;}
-  logPush('narrador','📜 Narrador', texto.replaceAll('{n}',j.nombre));
-  if(perdida){ j.animo=Math.max(0,j.animo-1);
+/* El narrador publica el desenlace (texto editado o sugerido) */
+function anfAceptarTirada(textoFinal){    // llamado por el anfitrión-narrador
+  const T=ESTADO._tirada, D=ESTADO._duelo, j=ESTADO.jugadores.find(x=>x.id===T.jugId);
+  if(!D) return;
+  const etiqueta = D.gano==='exito'?'✅ Logrado':(D.gano==='parcial'?'⚠️ A duras penas':'❌ Complicación');
+  logPush('sistema','🎲 Duelo', `${j.nombre} ${D.jugTotal} vs Narrador ${D.narrTotal} — ${D.clasif}`);
+  const texto = (textoFinal && textoFinal.trim()) ? textoFinal.trim() : D.sugerido;
+  logPush('narrador','📜 Narrador', texto);
+  if(D.gano==='fallo'){ j.animo=Math.max(0,j.animo-1);
     logPush('sistema','⚖️ Ánimo', `${j.nombre} pierde 1 ❤️${j.animo===0?' y queda abatido 😵':''}`); }
-  ESTADO._tirada=null; ESTADO._ultTirada=null;
+  ESTADO._tirada=null; ESTADO._ultTirada=null; ESTADO._duelo=null;
   ESTADO.ui={modo:'continuar', data:null};
   anfDifundir();
 }
@@ -1142,6 +1217,13 @@ function jugCambiarPj(){
 /* ==================== JUGADOR: acciones en su turno ==================== */
 function esMiTurno(){ return ESTADO.ui && ESTADO.ui.jugId===MI_ID; }
 function jugTirar(){
+  // Enviar primero la acción escrita/dictada del jugador (si escribió algo)
+  const inp=document.getElementById('inpAccion');
+  const accion = inp? inp.value.trim() : '';
+  if(accion){
+    if(ROL==='anfitrion') anfRegistrarAccion(accion);
+    else jugEnviar({t:'accion', texto:accion});
+  }
   const d1=document.getElementById('d1'), d2=document.getElementById('d2');
   d1.classList.add('girando'); d2.classList.add('girando');
   document.getElementById('btnTirar').disabled=true;
@@ -1155,6 +1237,22 @@ function jugTirar(){
       if(ROL==='anfitrion') anfProcesarTirada(a,b);
       else jugEnviar({t:'tirada', d1:a, d2:b});
       document.getElementById('btnTirar').disabled=false;
+    }
+  },90);
+}
+/* El narrador tira su dado (duelo) */
+function narradorTira(){
+  const d1=document.getElementById('nd1'), d2=document.getElementById('nd2');
+  if(!d1||!d2) return;
+  d1.classList.add('girando'); d2.classList.add('girando');
+  const bt=document.getElementById('btnTirarNarrador'); if(bt) bt.disabled=true;
+  let ticks=0;
+  const int=setInterval(()=>{
+    d1.textContent=1+Math.floor(Math.random()*6);
+    d2.textContent=1+Math.floor(Math.random()*6);
+    if(++ticks>=10){
+      clearInterval(int); d1.classList.remove('girando'); d2.classList.remove('girando');
+      anfTirarNarrador(parseInt(d1.textContent), parseInt(d2.textContent));
     }
   },90);
 }
@@ -1308,56 +1406,105 @@ function render(){
     return;
   }
   if(ui.modo==='tirada'){
-    const firma=JSON.stringify(ui);
+    const firma=JSON.stringify(ui)+'|'+ROL;
+    const jt=ESTADO.jugadores.find(x=>x.id===ui.jugId);
+    const desconectado = jt && jt.conectado===false;
+
+    // ===== VISTA DEL JUGADOR EN TURNO =====
     if(miTurno){
       zDados.classList.add('on');
-      document.getElementById('dadoPide').textContent=`${ui.jugNombre}: tirada de ${NOM_ATR[ui.atr]} (${f(ui.mod)})`+(ui.notas&&ui.notas.length?` · ${ui.notas.join(', ')}`:'');
+      document.getElementById('dadoPide').textContent=`Tu tirada: ${NOM_ATR[ui.atr]} (${f(ui.mod)})`+(ui.notas&&ui.notas.length?` · ${ui.notas.join(', ')}`:'');
       const bT=document.getElementById('btnTirar'), bR=document.getElementById('btnRepetir'), bA=document.getElementById('btnAceptar');
+      const campoAccion=document.getElementById('campoAccion');
       if(ui.estado==='porTirar'){
+        if(campoAccion) campoAccion.style.display='block';  // mostrar campo para escribir/dictar
         if(_uiFirma!==firma){ document.getElementById('d1').textContent='?'; document.getElementById('d2').textContent='?'; document.getElementById('resDado').innerHTML=''; }
         bT.style.display='inline-block'; bR.style.display='none'; bA.style.display='none';
-      }else{ // resuelto
-        document.getElementById('d1').textContent=ui.d1; document.getElementById('d2').textContent=ui.d2;
-        document.getElementById('resDado').innerHTML=`${ui.d1} + ${ui.d2} ${ui.mod?(ui.mod>0?'+ ':'− ')+Math.abs(ui.mod)+' ('+NOM_ATR[ui.atr]+')':''} = <b>${ui.total}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`;
-        bT.style.display='none';
-        bR.style.display = ui.puedeRepetir?'inline-block':'none';
-        bA.style.display='inline-block';
-        // El JUGADOR no narra: al aceptar, pide al anfitrión que resuelva
-        bA.onclick = soyAnf ? anfAceptarTirada : ()=>jugEnviar({t:'aceptar'});
-      }
-    }else{
-      zDados.classList.add('on');
-      document.getElementById('dadoPide').textContent=`${ui.jugNombre}: tirada de ${NOM_ATR[ui.atr]} (${f(ui.mod)})`;
-      if(ui.estado==='resuelto'){
-        document.getElementById('d1').textContent=ui.d1; document.getElementById('d2').textContent=ui.d2;
-        document.getElementById('resDado').innerHTML=`${ui.d1} + ${ui.d2} = <b>${ui.total}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`;
       }else{
+        // ya tiró: mostrar sus dados y ocultar el campo de acción
+        if(campoAccion) campoAccion.style.display='none';
+        document.getElementById('d1').textContent=ui.jugD1; document.getElementById('d2').textContent=ui.jugD2;
+        let html=`Tú: ${ui.jugD1} + ${ui.jugD2} ${ui.mod?(ui.mod>0?'+ ':'− ')+Math.abs(ui.mod)+' ('+NOM_ATR[ui.atr]+')':''} = <b>${ui.jugTotal}</b>`;
+        if(ui.estado==='esperaNarrador'){ html+=`<br><span style="color:var(--arena)">Esperando la tirada del narrador…</span>`; }
+        if(ui.estado==='dueloResuelto'){ html+=`<br>Narrador: ${ui.narrD1} + ${ui.narrD2} = <b>${ui.narrTotal}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`; }
+        document.getElementById('resDado').innerHTML=html;
+        bT.style.display='none';
+        bR.style.display = (ui.estado==='dueloResuelto' && ui.puedeRepetir)?'inline-block':'none';
+        bA.style.display='none';  // el jugador ya no publica; lo hace el narrador
+      }
+    }
+    // ===== VISTA DEL NARRADOR Y DE LOS DEMÁS =====
+    else{
+      zDados.classList.add('on');
+      document.getElementById('dadoPide').textContent=`Turno de ${ui.jugNombre} — ${NOM_ATR[ui.atr]} (${f(ui.mod)})`;
+      // Mostrar dados del jugador
+      if(ui.estado==='porTirar'){
         document.getElementById('d1').textContent='?'; document.getElementById('d2').textContent='?'; document.getElementById('resDado').innerHTML='';
+      }else{
+        document.getElementById('d1').textContent=ui.jugD1; document.getElementById('d2').textContent=ui.jugD2;
+        let html=`${ui.jugNombre}: <b>${ui.jugTotal}</b>`;
+        if(ui.estado==='dueloResuelto') html+=` vs Narrador: <b>${ui.narrTotal}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`;
+        document.getElementById('resDado').innerHTML=html;
       }
       document.getElementById('btnTirar').style.display='none';
       document.getElementById('btnRepetir').style.display='none';
       document.getElementById('btnAceptar').style.display='none';
-      // Si soy el anfitrión y la tirada está resuelta, YO avanzo la narración
-      if(soyAnf && ui.estado==='resuelto'){
-        zEspera.style.display='block'; zEspera.innerHTML='';
-        const b=document.createElement('button'); b.className='btn'; b.textContent='Narrar el resultado ➜';
-        b.onclick=anfAceptarTirada; zEspera.appendChild(b);
-      }else if(ui.estado==='porTirar'){
-        // Aviso claro de quién debe tirar + opción de saltar turno si está desconectado
-        const jt=ESTADO.jugadores.find(x=>x.id===ui.jugId);
-        const desconectado = jt && jt.conectado===false;
-        zEspera.style.display='block'; zEspera.innerHTML='';
+
+      zEspera.style.display='block'; zEspera.innerHTML='';
+      if(ui.estado==='porTirar'){
         const txt=document.createElement('div');
         txt.innerHTML = desconectado
           ? `⏳ Le toca a <b style="color:var(--acc)">${ui.jugNombre}</b>, pero está desconectado.`
-          : `🎲 Le toca tirar a <b style="color:var(--acc)">${ui.jugNombre}</b> desde su teléfono…`;
+          : `🎲 <b style="color:var(--acc)">${ui.jugNombre}</b> escribe su acción y tira desde su teléfono…`;
         zEspera.appendChild(txt);
         if(soyAnf){
           const bSkip=document.createElement('button');
           bSkip.className='btn secundario'; bSkip.style.marginTop='10px';
-          bSkip.textContent = desconectado ? 'Tirar por '+ui.jugNombre+' y seguir' : 'Saltar turno / tirar por este jugador';
+          bSkip.textContent = desconectado ? 'Tirar por '+ui.jugNombre : 'Saltar / tirar por '+ui.jugNombre;
           bSkip.onclick=()=>anfTirarPorJugador();
           zEspera.appendChild(bSkip);
+        }
+      }
+      else if(ui.estado==='esperaNarrador'){
+        // ¡Turno del narrador de tirar su duelo!
+        if(ui.accion){ const a=document.createElement('div'); a.style.cssText='font-style:italic;color:var(--arena);margin-bottom:8px'; a.textContent='"'+ui.accion+'"'; zEspera.appendChild(a); }
+        if(soyAnf){
+          const txt=document.createElement('div');
+          txt.innerHTML=`<b style="color:var(--acc)">${ui.jugNombre}</b> sacó <b>${ui.jugTotal}</b>. ¡Ahora tira tú, narrador!`;
+          zEspera.appendChild(txt);
+          const dz=document.createElement('div'); dz.className='dados'; dz.style.marginTop='10px';
+          dz.innerHTML='<div class="dado" id="nd1">?</div><div class="dado" id="nd2">?</div>';
+          zEspera.appendChild(dz);
+          const b=document.createElement('button'); b.className='btn'; b.id='btnTirarNarrador'; b.textContent='🎲 Tirar dado del narrador';
+          b.onclick=narradorTira; zEspera.appendChild(b);
+        }else{
+          const txt=document.createElement('div');
+          txt.innerHTML=`${ui.jugNombre} sacó ${ui.jugTotal}. El narrador va a tirar su dado…`;
+          zEspera.appendChild(txt);
+        }
+      }
+      else if(ui.estado==='dueloResuelto'){
+        if(soyAnf){
+          // El narrador ve el texto sugerido, editable, y lo publica
+          const lbl=document.createElement('div');
+          lbl.innerHTML=`<b class="${ui.cls}" style="font-family:var(--disp);letter-spacing:.08em">${ui.clasif}</b> — puedes ajustar el desenlace antes de publicarlo:`;
+          lbl.style.marginBottom='8px'; zEspera.appendChild(lbl);
+          const ta=document.createElement('textarea'); ta.id='taDesenlace';
+          ta.style.cssText='width:100%;min-height:90px;background:var(--noche);border:1px solid var(--linea);border-radius:8px;color:var(--pergamino);font-family:var(--body);font-size:1rem;padding:10px;resize:vertical';
+          ta.value=ui.sugerido||''; zEspera.appendChild(ta);
+          const fila=document.createElement('div'); fila.style.cssText='display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center';
+          const bPub=document.createElement('button'); bPub.className='btn'; bPub.textContent='Publicar desenlace ➜';
+          bPub.onclick=()=>anfAceptarTirada(document.getElementById('taDesenlace').value);
+          fila.appendChild(bPub);
+          if(ui.puedeRepetir){
+            const bRep=document.createElement('button'); bRep.className='btn secundario'; bRep.textContent='Dejar que gaste ❤️ y repita';
+            bRep.onclick=anfRepetir; fila.appendChild(bRep);
+          }
+          zEspera.appendChild(fila);
+        }else{
+          const txt=document.createElement('div');
+          txt.innerHTML=`Duelo: ${ui.jugNombre} <b>${ui.jugTotal}</b> vs Narrador <b>${ui.narrTotal}</b> — <span class="${ui.cls}">${ui.clasif}</span>. El narrador prepara el desenlace…`;
+          zEspera.appendChild(txt);
         }
       }
     }

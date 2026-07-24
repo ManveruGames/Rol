@@ -875,7 +875,24 @@ function anfIniciarPartida(){
   if(conectados.length<3){ alert('Se necesitan al menos 3 jugadores conectados.'); return; }
   const sinPersonaje=conectados.filter(j=>!j.arqId);
   if(sinPersonaje.length>0){
-    alert('Faltan por elegir personaje: '+sinPersonaje.map(j=>j.nombre).join(', ')+'. Pídeles que confirmen su personaje antes de comenzar.');
+    const nombres=sinPersonaje.map(j=>j.nombre).join(', ');
+    // Con al menos 3 CON personaje, ofrecer comenzar de todos modos
+    const conPersonaje=conectados.filter(j=>j.arqId);
+    if(conPersonaje.length>=3){
+      const ok=confirm(`Aún no eligen personaje: ${nombres}.\n\n¿Comenzar de todos modos? Se les asignará un personaje libre automáticamente y podrán cambiarlo después si aún queda alguno disponible.`);
+      if(!ok) return;
+      // Asignar arquetipos libres a los que faltan
+      sinPersonaje.forEach(j=>{
+        const libre=ARQUETIPOS.find(a=>!ESTADO.jugadores.some(o=>o.arqId===a.id));
+        if(libre){ j.arqId=libre.id; if(!j.genero) j.genero='m'; }
+      });
+      // si aún queda alguien sin arquetipo (no hay libres), no puede jugar: se le excluye
+      const aunSin=ESTADO.jugadores.filter(j=>j.conectado && !j.arqId);
+      aunSin.forEach(j=>{ j.conectado=false; });  // queda fuera hasta que haya un cupo
+      arrancarNarracion();
+      return;
+    }
+    alert(`Faltan por elegir personaje: ${nombres}. Se necesitan al menos 3 jugadores con personaje para comenzar.`);
     return;
   }
   // Todos los conectados ya tienen personaje: arrancamos directo.
@@ -1025,6 +1042,19 @@ function anfFinalizar(){
 
 /* ==================== JUGADOR: unirse ==================== */
 let jugTmp={genero:'m', arqId:null};
+let _pantallaElegirMontada=false;
+/* Actualiza solo qué arquetipos están ocupados, sin reconstruir la pantalla
+   (así no se borra lo que el jugador va seleccionando) */
+function refrescarBloqueosArq(){
+  const acont=document.getElementById('elegirArqs');
+  if(!acont) return;
+  [...acont.children].forEach((btn,i)=>{
+    const a=ARQUETIPOS[i]; if(!a) return;
+    const ocupado=ESTADO.jugadores.some(j=>j.id!==MI_ID && j.arqId===a.id);
+    // no bloquear el que yo tengo seleccionado
+    btn.disabled = ocupado && jugTmp.arqId!==a.id;
+  });
+}
 function unirseSala(){
   const codigo=document.getElementById('inpCodigo').value.trim().toUpperCase();
   const nombre=document.getElementById('inpNombreJug').value.trim();
@@ -1089,11 +1119,13 @@ function montarElegirPj(){
   document.getElementById('btnConfirmarPj').disabled=!jugTmp.arqId;
 }
 function jugConfirmarPj(){
+  if(!jugTmp.arqId){ return; }
   jugEnviar({t:'eligePj', id:MI_ID, genero:jugTmp.genero, arqId:jugTmp.arqId});
   document.getElementById('btnConfirmarPj').disabled=true;
   document.getElementById('btnConfirmarPj').textContent='✓ Confirmado';
   document.getElementById('btnCambiarPj').style.display='inline-block';
   document.getElementById('estElegir').textContent='¡Listo! Puedes cambiar mientras la aventura no empiece.';
+  _pantallaElegirMontada=false;  // si vuelve a la pantalla, se remonta limpio
 }
 function jugCambiarPj(){
   // permite volver a elegir mientras la partida no haya arrancado
@@ -1103,6 +1135,7 @@ function jugCambiarPj(){
   document.getElementById('btnConfirmarPj').textContent='Confirmar';
   document.getElementById('btnCambiarPj').style.display='none';
   document.getElementById('estElegir').textContent='Elige de nuevo tu personaje.';
+  _pantallaElegirMontada=true;
   montarElegirPj();
 }
 
@@ -1144,7 +1177,9 @@ function render(){
         document.getElementById('btnConfirmarPj').textContent='✓ Confirmado';
         document.getElementById('btnCambiarPj').style.display='inline-block';
       } else {
-        montarElegirPj();  // aún no eligió: mostrar opciones
+        // Solo montar la pantalla UNA vez, para no borrar lo que el jugador va eligiendo
+        if(!_pantallaElegirMontada){ montarElegirPj(); _pantallaElegirMontada=true; }
+        else { refrescarBloqueosArq(); }  // solo actualizar qué arquetipos siguen libres
       }
     }
     if(ROL==='anfitrion') refrescarLobby();
@@ -1174,6 +1209,17 @@ function render(){
     return;
   }
   // --- Fase jugando ---
+  // Si soy un jugador que se acaba de unir y aún no tengo personaje, déjame elegir uno
+  if(ROL==='jugador'){
+    const yo=ESTADO.jugadores.find(j=>j.id===MI_ID);
+    if(yo && !yo.arqId){
+      irA('scrElegirPj');
+      document.getElementById('estElegir').textContent='La aventura ya comenzó. Elige un personaje libre para unirte.';
+      if(!_pantallaElegirMontada){ montarElegirPj(); _pantallaElegirMontada=true; }
+      else { refrescarBloqueosArq(); }
+      return;
+    }
+  }
   irA('scrJuego');
   document.getElementById('banIco').textContent=ESTADO.banner.ico;
   document.getElementById('banNom').textContent=ESTADO.banner.nom;

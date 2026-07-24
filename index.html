@@ -652,8 +652,21 @@ function narrar(texto, elem){
   if(!('speechSynthesis' in window)||!vozActiva) return;
   speechSynthesis.cancel();
   document.querySelectorAll('.msg.leyendo').forEach(m=>m.classList.remove('leyendo'));
-  const limpio=texto.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,'').replace(/\s+/g,' ').trim();
+  let limpio=texto.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,'').replace(/\s+/g,' ').trim();
   if(!limpio) return;
+  // Si una LÍNEA está toda en mayúsculas (título de escena), pasarla a minúsculas
+  // para que el motor de voz no la deletree como sigla.
+  limpio=limpio.split('\n').map(linea=>{
+    const soloLetras=linea.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g,'');
+    if(soloLetras.length>2 && soloLetras===soloLetras.toUpperCase()){
+      return linea.charAt(0)+linea.slice(1).toLowerCase();
+    }
+    return linea;
+  }).join('. ');
+  // Garantizar puntuación de cierre y evitar puntos dobles
+  limpio=limpio.replace(/\.\s*\./g,'.').replace(/\.\s*\.\s*/g,'. ');
+  if(!/[.!?…]$/.test(limpio)) limpio+='.';
+  limpio=limpio.replace(/\.\./g,'.');
   const u=new SpeechSynthesisUtterance(limpio);
   if(vozES) u.voice=vozES;
   u.lang=vozES?vozES.lang:'es-ES'; u.rate=0.96;
@@ -1224,35 +1237,56 @@ function jugTirar(){
     if(ROL==='anfitrion') anfRegistrarAccion(accion);
     else jugEnviar({t:'accion', texto:accion});
   }
+  // Calcular el resultado UNA sola vez (no depender del DOM que puede recrearse)
+  const resultado1 = 1+Math.floor(Math.random()*6);
+  const resultado2 = 1+Math.floor(Math.random()*6);
   const d1=document.getElementById('d1'), d2=document.getElementById('d2');
-  d1.classList.add('girando'); d2.classList.add('girando');
   document.getElementById('btnTirar').disabled=true;
+  if(!d1||!d2){
+    if(ROL==='anfitrion') anfProcesarTirada(resultado1,resultado2);
+    else jugEnviar({t:'tirada', d1:resultado1, d2:resultado2});
+    return;
+  }
+  d1.classList.add('girando'); d2.classList.add('girando');
   let ticks=0;
   const int=setInterval(()=>{
-    d1.textContent=1+Math.floor(Math.random()*6);
-    d2.textContent=1+Math.floor(Math.random()*6);
+    const e1=document.getElementById('d1'), e2=document.getElementById('d2');
+    if(e1) e1.textContent=1+Math.floor(Math.random()*6);
+    if(e2) e2.textContent=1+Math.floor(Math.random()*6);
     if(++ticks>=10){
-      clearInterval(int); d1.classList.remove('girando'); d2.classList.remove('girando');
-      const a=parseInt(d1.textContent), b=parseInt(d2.textContent);
-      if(ROL==='anfitrion') anfProcesarTirada(a,b);
-      else jugEnviar({t:'tirada', d1:a, d2:b});
-      document.getElementById('btnTirar').disabled=false;
+      clearInterval(int);
+      const f1=document.getElementById('d1'), f2=document.getElementById('d2');
+      if(f1){ f1.classList.remove('girando'); f1.textContent=resultado1; }
+      if(f2){ f2.classList.remove('girando'); f2.textContent=resultado2; }
+      // usar SIEMPRE el resultado calculado, no lo que diga el DOM
+      if(ROL==='anfitrion') anfProcesarTirada(resultado1,resultado2);
+      else jugEnviar({t:'tirada', d1:resultado1, d2:resultado2});
+      const bt=document.getElementById('btnTirar'); if(bt) bt.disabled=false;
     }
   },90);
 }
 /* El narrador tira su dado (duelo) */
 function narradorTira(){
-  const d1=document.getElementById('nd1'), d2=document.getElementById('nd2');
-  if(!d1||!d2) return;
-  d1.classList.add('girando'); d2.classList.add('girando');
   const bt=document.getElementById('btnTirarNarrador'); if(bt) bt.disabled=true;
+  // Calcular el resultado UNA sola vez (independiente del DOM y de la animación)
+  const resultado1 = 1+Math.floor(Math.random()*6);
+  const resultado2 = 1+Math.floor(Math.random()*6);
+  const d1=document.getElementById('nd1'), d2=document.getElementById('nd2');
+  if(!d1||!d2){ anfTirarNarrador(resultado1, resultado2); return; }
+  d1.classList.add('girando'); d2.classList.add('girando');
   let ticks=0;
   const int=setInterval(()=>{
-    d1.textContent=1+Math.floor(Math.random()*6);
-    d2.textContent=1+Math.floor(Math.random()*6);
+    // durante el giro mostramos números al azar (solo visual)
+    const e1=document.getElementById('nd1'), e2=document.getElementById('nd2');
+    if(e1) e1.textContent=1+Math.floor(Math.random()*6);
+    if(e2) e2.textContent=1+Math.floor(Math.random()*6);
     if(++ticks>=10){
-      clearInterval(int); d1.classList.remove('girando'); d2.classList.remove('girando');
-      anfTirarNarrador(parseInt(d1.textContent), parseInt(d2.textContent));
+      clearInterval(int);
+      const f1=document.getElementById('nd1'), f2=document.getElementById('nd2');
+      if(f1){ f1.classList.remove('girando'); f1.textContent=resultado1; }
+      if(f2){ f2.classList.remove('girando'); f2.textContent=resultado2; }
+      // usar SIEMPRE el resultado calculado, no lo que diga el DOM
+      anfTirarNarrador(resultado1, resultado2);
     }
   },90);
 }
@@ -1336,9 +1370,14 @@ function render(){
     });
     log.scrollTop=log.scrollHeight;
     // narrar el último mensaje del narrador si el audio está activo
-    const ults=[...log.querySelectorAll('.msg.narrador')];
-    if(vozActiva && ults.length && ESTADO.log.length>_logDibujado){
-      narrar(ults[ults.length-1].querySelector('.cuerpo').textContent, ults[ults.length-1]);
+    if(vozActiva && ESTADO.log.length>_logDibujado){
+      const ultimoNarr=[...ESTADO.log].reverse().find(m=>m.clase && m.clase.includes('narrador'));
+      const elems=[...log.querySelectorAll('.msg.narrador')];
+      if(ultimoNarr){
+        // título y texto separados con salto de línea → se leen como frases distintas
+        const textoALeer = ultimoNarr.tit ? (ultimoNarr.tit+'.\n'+ultimoNarr.texto) : ultimoNarr.texto;
+        narrar(textoALeer, elems[elems.length-1]);
+      }
     }
     _logDibujado=ESTADO.log.length;
   }
@@ -1418,7 +1457,10 @@ function render(){
       const campoAccion=document.getElementById('campoAccion');
       if(ui.estado==='porTirar'){
         if(campoAccion) campoAccion.style.display='block';  // mostrar campo para escribir/dictar
-        if(_uiFirma!==firma){ document.getElementById('d1').textContent='?'; document.getElementById('d2').textContent='?'; document.getElementById('resDado').innerHTML=''; }
+        if(_uiFirma!==firma){
+          document.getElementById('d1').textContent='?'; document.getElementById('d2').textContent='?'; document.getElementById('resDado').innerHTML='';
+          const inp=document.getElementById('inpAccion'); if(inp) inp.value='';  // limpiar de turnos anteriores
+        }
         bT.style.display='inline-block'; bR.style.display='none'; bA.style.display='none';
       }else{
         // ya tiró: mostrar sus dados y ocultar el campo de acción

@@ -72,6 +72,18 @@ label{font-family:var(--disp);font-size:.72rem;letter-spacing:.18em;color:var(--
 .msg.leyendo .cuerpo{background:linear-gradient(90deg,rgba(217,164,65,.08),transparent);border-radius:6px;padding:4px 8px;margin:-4px -8px}
 .msg .titEsc{font-family:var(--disp);font-size:.95rem;color:var(--acc);letter-spacing:.1em;margin-bottom:4px}
 #tiraJug{display:flex;gap:10px;overflow-x:auto;padding:12px 2px;margin-top:6px}
+#mapaEscena{margin-top:12px;display:none}
+#mapaEscena .marco{border:1px solid var(--linea);border-radius:10px;overflow:hidden;background:var(--cuero);position:relative}
+#mapaEscena img{width:100%;display:block;max-height:200px;object-fit:cover;object-position:center 35%}
+#mapaEscena .ruta{display:flex;align-items:center;gap:0;padding:10px 12px;overflow-x:auto;background:var(--cuero)}
+#mapaEscena .hito{display:flex;flex-direction:column;align-items:center;min-width:64px;position:relative;flex-shrink:0}
+#mapaEscena .hito .punto{width:26px;height:26px;border-radius:50%;border:2px solid var(--linea);background:var(--noche);display:flex;align-items:center;justify-content:center;font-size:.8rem;color:var(--arena);z-index:1}
+#mapaEscena .hito.hecho .punto{background:var(--acc);border-color:var(--acc);color:#241a0d}
+#mapaEscena .hito.actual .punto{border-color:var(--acc);box-shadow:0 0 10px rgba(217,164,65,.5);color:var(--acc)}
+#mapaEscena .hito .etq{font-size:.62rem;color:var(--arena);margin-top:4px;text-align:center;line-height:1.15;font-family:var(--disp);letter-spacing:.03em;max-width:70px}
+#mapaEscena .hito.actual .etq{color:var(--acc)}
+#mapaEscena .conector{height:2px;background:var(--linea);flex:1;min-width:14px;margin-top:-14px}
+#mapaEscena .conector.hecho{background:var(--acc)}
 .pj{min-width:150px;background:var(--cuero);border:1px solid var(--linea);border-radius:10px;padding:10px 12px;flex-shrink:0;transition:box-shadow .3s, border-color .3s}
 .pj.turno{border-color:var(--acc);box-shadow:0 0 18px rgba(217,164,65,.25)}
 .pj.abatido{opacity:.55;filter:grayscale(.6)}
@@ -201,6 +213,11 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
       <span class="acto" id="banActo">Acto I</span>
     </div>
   </div>
+  <div id="barraAnfitrion" style="display:none;gap:8px;margin-top:10px;flex-wrap:wrap;justify-content:center">
+    <button class="btn-audio" onclick="guardarYSalir()">💾 Guardar y salir</button>
+    <button class="btn-audio" id="btnSkipGlobal" onclick="menuSkip()">⏭️ Saltar jugador</button>
+  </div>
+  <div id="mapaEscena"></div>
   <div id="tiraJug"></div>
   <div id="log" aria-live="polite"></div>
   <div id="zonaAccion">
@@ -742,6 +759,74 @@ function pintarJugadores(turnoNombre){
       <div class="st">F${f(s.fuerza)} A${f(s.agilidad)} I${f(s.ingenio)} C${f(s.carisma)} Fe${f(s.fe)}</div>`;
     cont.appendChild(d);
   });
+}
+
+/* ==================== MAPA DE LA HISTORIA ==================== */
+/* Hitos (paradas) por escenario. Cada uno tiene un ícono y una etiqueta corta.
+   El mapa marca cuáles ya se cruzaron según ESTADO.escIdx. */
+const MAPAS = {
+  eden:      {img:'mapa-eden.jpg', hitos:['🌄 El valle','🏕️ Refugio','🍇 Alimento','🌾 Arar','🐐 Rebaño','🔥 La noche','🦗 Langostas','⚖️ Reparto','🪨 El altar']},
+  arca:      {img:'mapa-arca.jpg', hitos:['🌳 Madera','🛠️ La viga','😆 Burlas','🌾 Provisiones','🐾 Animales','🌩️ Última noche','💧 La fuga','🦌 La cierva','🎶 Encierro','🌈 Ararat']},
+  tierra:    {img:'mapa-tierra.jpg', hitos:['🚪 Jericó','👂 Mercado','🧵 La cuerda','🏕️ Campamento','🌊 El Jordán','🪨 12 piedras','🤫 La marcha','🎺 7º día','🏠 Rahab']},
+  babilonia: {img:'mapa-babilonia.jpg', hitos:['🧭 El camino','⛓️ Prueba 1','🏛️ Babilonia','📜 Prueba 2','🔥 Prueba 3','🏠 Destino']},
+  mision:    {img:'mapa-mision.jpg', hitos:['⛵ El barco','🌊 Tormenta','🕊️ Calma','🏘️ La ciudad','🗣️ El río','📖 Sinagoga','😠 Tumulto','🎶 Cárcel','⚖️ Magistrado']}
+};
+function pintarMapa(){
+  const cont=document.getElementById('mapaEscena'); if(!cont) return;
+  const m=MAPAS[ESTADO.escId];
+  if(!m){ cont.style.display='none'; return; }
+  cont.style.display='block';
+  // número de escenas reales (para Babilonia depende de la ruta)
+  const nEsc = escenasActuales().length;
+  const hitos = m.hitos.slice(0, nEsc);
+  const idx = ESTADO.escIdx;  // escena actual (0-based); -1 = aún no empieza
+  let html='<div class="marco">';
+  html+=`<img src="${CARPETA_IMG}/${m.img}" alt="Mapa" onerror="this.style.display='none'">`;
+  html+='<div class="ruta">';
+  hitos.forEach((h,i)=>{
+    const partes=h.split(' ');
+    const ico=partes.shift(); const etq=partes.join(' ');
+    const clase = i<idx ? 'hecho' : (i===idx ? 'actual' : '');
+    if(i>0) html+=`<div class="conector ${i<=idx?'hecho':''}"></div>`;
+    html+=`<div class="hito ${clase}"><div class="punto">${i<idx?'✓':ico}</div><div class="etq">${etq}</div></div>`;
+  });
+  html+='</div></div>';
+  cont.innerHTML=html;
+}
+
+/* ==================== GUARDAR Y SALIR ==================== */
+function guardarYSalir(){
+  guardarPartida();
+  const g=hayPartidaGuardada();
+  if(g){ alert('Partida guardada. Podrás continuarla desde la pantalla de inicio (botón "Continuar partida guardada"). Código de tu sala: '+ESTADO.codigo); }
+  else { alert('Partida guardada.'); }
+  // recargar para volver al inicio; el guardado queda en el teléfono del anfitrión
+  if(confirm('¿Salir ahora? La partida quedó guardada y podrás retomarla luego.')){
+    partidaEnCurso=false;  // evitar el doble aviso de "beforeunload"
+    location.reload();
+  }
+}
+
+/* ==================== MENÚ DE SKIP (saltar a un desconectado) ==================== */
+function menuSkip(){
+  const desc=ESTADO.jugadores.filter(j=>j.conectado===false);
+  if(desc.length===0){ alert('No hay jugadores desconectados en este momento.'); return; }
+  // Si el jugador desconectado es justo el del turno, resolvemos su tirada directamente
+  const enTurno = ESTADO.ui && (ESTADO.ui.jugId) ? ESTADO.jugadores.find(j=>j.id===ESTADO.ui.jugId && j.conectado===false) : null;
+  if(enTurno && ESTADO.ui.modo==='tirada' && ESTADO.ui.estado==='porTirar'){
+    if(confirm(`${enTurno.nombre} está desconectado y es su turno. ¿Tirar por él/ella y continuar?`)){
+      anfTirarPorJugador();
+    }
+    return;
+  }
+  if(enTurno && ESTADO.ui.modo==='eleccion'){
+    if(confirm(`${enTurno.nombre} está desconectado y le toca decidir. Se elegirá la primera opción por él/ella.`)){
+      anfAplicarEleccion(0);
+    }
+    return;
+  }
+  // Si no es su turno, informamos (el skip se aplica cuando le toca)
+  alert('Desconectados: '+desc.map(j=>j.nombre).join(', ')+'.\n\nCuando le toque el turno a alguno, este botón te dejará tirar o decidir por esa persona para no detener la partida. Mientras tanto, la aventura sigue con los demás.');
 }
 
 /* ==================== ESTADO GLOBAL ====================
@@ -1356,6 +1441,10 @@ function render(){
   document.getElementById('banIco').textContent=ESTADO.banner.ico;
   document.getElementById('banNom').textContent=ESTADO.banner.nom;
   document.getElementById('banActo').textContent='Acto '+ESTADO.acto;
+  // Barra de anfitrión (guardar / skip) solo para el anfitrión
+  const barra=document.getElementById('barraAnfitrion');
+  if(barra) barra.style.display = (ROL==='anfitrion') ? 'flex' : 'none';
+  pintarMapa();
   pintarJugadores(ESTADO.turnoNombre);
 
   // Reconstruir el log si cambió

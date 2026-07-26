@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Aventuras Bíblicas — En línea</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=EB+Garamond:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
@@ -271,6 +274,10 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
    Tu carpeta en GitHub se llama "Imagenes". Si algún día la renombras
    a "img", cambia solo esta línea. */
 const CARPETA_IMG = 'Imagenes';
+/* Versión del archivo. Súbela cada vez que publiques cambios: si un dispositivo
+   quedó con una copia vieja en caché, el juego lo detecta y avisa en vez de
+   fallar con números raros. */
+const VERSION = '12d-mascota-1';
 const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carisma:'Carisma', fe:'Fe'};
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
@@ -934,6 +941,12 @@ function reanudarPartida(){
 }
 function anfRecibe(conn, msg){
   if(msg.t==='hola'){                 // jugador se presenta
+    // Aviso de versiones distintas: la causa más común de valores raros en los dados
+    if(msg.ver && msg.ver!==VERSION){
+      logPush('sistema','⚠️ Versiones distintas',
+        `${msg.nombre} tiene la versión ${msg.ver} y esta sala usa ${VERSION}. `+
+        `Pídele que recargue la página (o comparte el enlace con ?v=${Date.now()} al final).`);
+    }
     // ¿reconexión de alguien que ya estaba?
     let j=ESTADO.jugadores.find(x=>x.nombre.toLowerCase()===msg.nombre.toLowerCase());
     if(j){ j.conectado=true; conn._pid=j.id; }
@@ -942,7 +955,7 @@ function anfRecibe(conn, msg){
       j={id, nombre:msg.nombre, genero:null, arqId:null, animo:3, conectado:true};
       ESTADO.jugadores.push(j); conn._pid=id;
     }
-    conn.send(JSON.stringify({t:'tuId', id:conn._pid, escId:ESTADO.escId, fase:ESTADO.fase}));
+    conn.send(JSON.stringify({t:'tuId', id:conn._pid, escId:ESTADO.escId, fase:ESTADO.fase, ver:VERSION}));
     refrescarLobby(); anfDifundir();
   }
   else if(msg.t==='eligePj'){         // jugador confirma género+arquetipo
@@ -1176,8 +1189,16 @@ function anfAprobarAccion(textoAjustado){
 }
 function anfProcesarTirada(dado, dadoMascota){
   const T=ESTADO._tirada; if(!T) return;
+  // Red blindada: si llega un valor que no es número (versiones distintas, mensaje
+  // corrupto), se avisa y no se sigue, en vez de producir NaN silencioso.
+  if(!Number.isFinite(dado)){
+    logPush('sistema','⚠️ Tirada inválida',
+      'Llegó una tirada sin número. Casi siempre es que ese jugador tiene una versión '+
+      'distinta del juego: pídele que recargue la página y vuelve a tirar.');
+    anfDifundir(); return;
+  }
   const usaMascota = ESTADO._usaMascota || false;
-  const extra = usaMascota ? (dadoMascota||0) : 0;
+  const extra = usaMascota ? (Number.isFinite(dadoMascota)?dadoMascota:0) : 0;
   const totalJug=dado+extra+T.mod;
   const j=ESTADO.jugadores.find(x=>x.id===T.jugId);
   const a=j?ARQUETIPOS.find(x=>x.id===j.arqId):null;
@@ -1193,7 +1214,12 @@ function anfProcesarTirada(dado, dadoMascota){
 /* El narrador tira su dado (1d12) para el duelo; si hay mascota, también tira su dado extra */
 function anfTirarNarrador(dadoNarr, dadoNarrMascota){
   const T=ESTADO._tirada, D=ESTADO._duelo; if(!T||!D) return;
-  const extra = D.usaMascota ? (dadoNarrMascota||0) : 0;
+  if(!Number.isFinite(dadoNarr) || !Number.isFinite(D.jugTotal)){
+    logPush('sistema','⚠️ Duelo inválido',
+      'Falta el número de alguna tirada. Que todos recarguen la página y repite el turno.');
+    anfDifundir(); return;
+  }
+  const extra = D.usaMascota ? (Number.isFinite(dadoNarrMascota)?dadoNarrMascota:0) : 0;
   const narrTotal = dadoNarr + extra;
   D.narrDado=dadoNarr; D.narrMascota=extra; D.narrTotal=narrTotal;
   // Duelo: si el jugador iguala o supera al narrador, cumple.
@@ -1291,7 +1317,7 @@ function unirseSala(){
   peer.on('open', ()=>{
     connAnf=peer.connect(PREFIJO+codigo, {reliable:true});
     connAnf.on('open', ()=>{
-      connAnf.send(JSON.stringify({t:'hola', nombre}));
+      connAnf.send(JSON.stringify({t:'hola', nombre, ver:VERSION}));
       est.className='estado-red ok'; est.textContent='¡Conectado! Esperando…';
     });
     connAnf.on('data', d=>jugRecibe(JSON.parse(d)));
@@ -1302,8 +1328,26 @@ function unirseSala(){
     est.textContent = e.type==='peer-unavailable' ? 'No existe una sala con ese código.' : 'Error de conexión: '+e.type;
   });
 }
+/* Aviso fijo cuando el narrador y este dispositivo tienen versiones distintas del
+   archivo. Es la causa típica de dados en blanco, "undefined" o "NaN": uno de los
+   dos navegadores se quedó con una copia vieja en caché. */
+function avisoVersion(verAnf){
+  if(document.getElementById('avisoVer')) return;
+  const d=document.createElement('div');
+  d.id='avisoVer';
+  d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99;background:var(--rojo);'+
+    'color:#fff;font-family:var(--body);font-size:.9rem;line-height:1.4;padding:10px 14px;text-align:center';
+  d.innerHTML='⚠️ Tu versión del juego (<b>'+VERSION+'</b>) no es la del narrador (<b>'+verAnf+'</b>). '+
+    'Recarga esta página antes de jugar o los dados darán resultados inválidos. '+
+    '<button id="btnRecargaVer" style="margin-left:8px;padding:4px 10px;border:none;border-radius:5px;cursor:pointer">Recargar</button>';
+  document.body.appendChild(d);
+  document.getElementById('btnRecargaVer').onclick=()=>{
+    const u=new URL(location.href); u.searchParams.set('v', Date.now()); location.replace(u.toString());
+  };
+}
 function jugRecibe(msg){
   if(msg.t==='tuId'){ MI_ID=msg.id; ESTADO.escId=msg.escId;
+    if(msg.ver && msg.ver!==VERSION) avisoVersion(msg.ver);
     if(typeof msg.fase!=='undefined') ESTADO.fase=msg.fase;
     const e=esc(); if(e) document.documentElement.style.setProperty('--acc',e.color);
     render();

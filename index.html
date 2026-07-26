@@ -245,6 +245,7 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
       <div class="dados"><div class="dado d12" id="dadoJug">?</div><div class="dado d12 mascota" id="dadoJugMasc" style="display:none">?</div></div>
       <div id="resDado"></div>
       <div id="botonesDado">
+        <button class="btn secundario" id="btnMascota" style="display:none" onclick="jugLlamarMascota()"></button>
         <button class="btn" id="btnTirar" onclick="jugTirar()">Tirar los dados</button>
         <button class="btn secundario" id="btnRepetir" style="display:none" onclick="jugRepetir()">Gastar ❤️ y repetir</button>
         <button class="btn" id="btnAceptar" style="display:none" onclick="jugAceptar()">Aceptar resultado</button>
@@ -277,7 +278,7 @@ const CARPETA_IMG = 'Imagenes';
 /* Versión del archivo. Súbela cada vez que publiques cambios: si un dispositivo
    quedó con una copia vieja en caché, el juego lo detecta y avisa en vez de
    fallar con números raros. */
-const VERSION = '12d-mascota-1';
+const VERSION = '12d-mascota-3';
 const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carisma:'Carisma', fe:'Fe'};
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
@@ -680,23 +681,49 @@ function toggleVoz(){
   b.classList.toggle('on',vozActiva);
   b.textContent = vozActiva? '🔊 Narrando':'🔊 Narrar';
   if(!vozActiva){ speechSynthesis.cancel(); document.querySelectorAll('.msg.leyendo').forEach(m=>m.classList.remove('leyendo')); }
-  else{ const u=[...document.querySelectorAll('.msg.narrador')]; if(u.length) narrar(u[u.length-1].querySelector('.cuerpo').textContent,u[u.length-1]); }
+  else{
+    // Se lee desde los datos de la bitácora, no del DOM: el texto renderizado pega
+    // el título en MAYÚSCULAS con el cuerpo y el motor de voz lo deletrea.
+    const ult=[...(ESTADO.log||[])].reverse().find(m=>m.clase && m.clase.includes('narrador'));
+    const elems=[...document.querySelectorAll('.msg.narrador')];
+    if(ult) narrar(textoNarrable(ult), elems[elems.length-1]);
+  }
+}
+/* Texto que se le pasa al narrador de voz: título y cuerpo separados por salto de
+   línea, para que se lean como dos frases y nunca queden pegados. */
+function textoNarrable(m){
+  if(!m) return '';
+  return m.tit ? (m.tit + '.\n' + m.texto) : m.texto;
 }
 function narrar(texto, elem){
   if(!('speechSynthesis' in window)||!vozActiva) return;
   speechSynthesis.cancel();
   document.querySelectorAll('.msg.leyendo').forEach(m=>m.classList.remove('leyendo'));
-  let limpio=texto.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,'').replace(/\s+/g,' ').trim();
+  // OJO: aquí solo se colapsan espacios y tabuladores, NO los saltos de línea.
+  // Si se colapsan los saltos, el bloque de abajo que arregla los títulos en
+  // MAYÚSCULAS nunca encuentra las líneas y el motor de voz las deletrea.
+  let limpio=texto.replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2190}-\u{21FF}]/gu,'').replace(/[ \t]+/g,' ').trim();
   if(!limpio) return;
   // Si una LÍNEA está toda en mayúsculas (título de escena), pasarla a minúsculas
   // para que el motor de voz no la deletree como sigla.
-  limpio=limpio.split('\n').map(linea=>{
+  limpio=limpio.split(/\n+/).map(linea=>{
     const soloLetras=linea.replace(/[^A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/g,'');
     if(soloLetras.length>2 && soloLetras===soloLetras.toUpperCase()){
       return linea.charAt(0)+linea.slice(1).toLowerCase();
     }
     return linea;
   }).join('. ');
+  // Salvaguarda: si aun así llegara una racha de MAYÚSCULAS pegada al cuerpo
+  // (por ejemplo al leer texto ya renderizado), se pasa a minúsculas y se cierra
+  // con punto para que no se deletree como sigla.
+  // 1) racha de mayúsculas pegada al inicio de una palabra: se corta con punto
+  //    ("MASCOTASantana" -> "Mascota. Santana")
+  limpio=limpio.replace(/[A-ZÁÉÍÓÚÜÑ]{2,}(?=[A-ZÁÉÍÓÚÜÑ][a-záéíóúüñ])/g,
+    m=>m.charAt(0)+m.slice(1).toLowerCase()+'. ');
+  // 2) racha suelta de mayúsculas: solo se pasa a minúsculas
+  limpio=limpio.replace(/[A-ZÁÉÍÓÚÜÑ]{2,}(?:[ ][A-ZÁÉÍÓÚÜÑ]{2,})*/g,
+    m=>m.charAt(0)+m.slice(1).toLowerCase());
+  limpio=limpio.replace(/\s+/g,' ');
   // Garantizar puntuación de cierre y evitar puntos dobles
   limpio=limpio.replace(/\.\s*\./g,'.').replace(/\.\s*\.\s*/g,'. ');
   if(!/[.!?…]$/.test(limpio)) limpio+='.';
@@ -975,6 +1002,13 @@ function anfRecibe(conn, msg){
   }
   else if(msg.t==='tirada'){          // jugador tiró su dado (1d12)
     anfProcesarTirada(msg.dado, msg.dadoMascota||0);
+  }
+  else if(msg.t==='mascota'){         // el jugador en turno decide llamar a su mascota
+    // Solo el jugador al que le toca puede invocarla, y solo antes de tirar.
+    if(ESTADO._tirada && conn._pid===ESTADO._tirada.jugId
+       && ESTADO.ui && ESTADO.ui.estado==='porTirar' && !ESTADO._usaMascota){
+      anfActivarMascota();
+    }
   }
   else if(msg.t==='repetir'){
     anfRepetir();
@@ -1410,6 +1444,11 @@ function jugCambiarPj(){
 
 /* ==================== JUGADOR: acciones en su turno ==================== */
 function esMiTurno(){ return ESTADO.ui && ESTADO.ui.jugId===MI_ID; }
+function jugLlamarMascota(){
+  const b=document.getElementById('btnMascota'); if(b) b.disabled=true;
+  if(ROL==='anfitrion') anfActivarMascota();
+  else jugEnviar({t:'mascota'});
+}
 function jugTirar(){
   // Enviar primero la acción escrita/dictada del jugador (si escribió algo)
   const inp=document.getElementById('inpAccion');
@@ -1572,9 +1611,7 @@ function render(){
       const ultimoNarr=[...ESTADO.log].reverse().find(m=>m.clase && m.clase.includes('narrador'));
       const elems=[...log.querySelectorAll('.msg.narrador')];
       if(ultimoNarr){
-        // título y texto separados con salto de línea → se leen como frases distintas
-        const textoALeer = ultimoNarr.tit ? (ultimoNarr.tit+'.\n'+ultimoNarr.texto) : ultimoNarr.texto;
-        narrar(textoALeer, elems[elems.length-1]);
+        narrar(textoNarrable(ultimoNarr), elems[elems.length-1]);
       }
     }
     _logDibujado=ESTADO.log.length;
@@ -1686,9 +1723,23 @@ function render(){
       const bT=document.getElementById('btnTirar'), bR=document.getElementById('btnRepetir'), bA=document.getElementById('btnAceptar');
       const campoAccion=document.getElementById('campoAccion');
       const djMasc=document.getElementById('dadoJugMasc');
+      const bMasc=document.getElementById('btnMascota');
       if(ui.estado==='porTirar'){
         if(campoAccion) campoAccion.style.display='block';  // mostrar campo para escribir/dictar
         if(djMasc) djMasc.style.display = ui.usaMascota ? 'flex' : 'none';
+        // El jugador decide si llama a su mascota, antes de tirar. Una vez por turno.
+        if(bMasc){
+          const yo=ESTADO.jugadores.find(x=>x.id===MI_ID);
+          const aYo=yo?ARQUETIPOS.find(x=>x.id===yo.arqId):null;
+          if(aYo && aYo.mascota && !ui.usaMascota){
+            bMasc.textContent=`${aYo.mascota.ico} Llamar a mi ${aYo.mascota.nombre.toLowerCase()}`;
+            bMasc.title=aYo.mascota.don;
+            bMasc.disabled=false;
+            bMasc.style.display='inline-block';
+          }else{
+            bMasc.style.display='none';
+          }
+        }
         if(_uiFirma!==firma){
           const dj=document.getElementById('dadoJug'); if(dj) dj.textContent='?';
           if(djMasc) djMasc.textContent='?';
@@ -1697,8 +1748,9 @@ function render(){
         }
         bT.style.display='inline-block'; bR.style.display='none'; bA.style.display='none';
       }else{
-        // ya tiró: mostrar su dado y ocultar el campo de acción
+        // ya tiró: mostrar su dado y ocultar el campo de acción y el botón de mascota
         if(campoAccion) campoAccion.style.display='none';
+        if(bMasc) bMasc.style.display='none';
         const dj=document.getElementById('dadoJug'); if(dj) dj.textContent=ui.jugDado;
         if(djMasc){ djMasc.style.display = ui.usaMascota ? 'flex' : 'none'; if(ui.usaMascota) djMasc.textContent=ui.jugMascota; }
         let html=`Tú: <b>${ui.jugDado}</b>`;
@@ -1706,7 +1758,11 @@ function render(){
         if(ui.mod) html+=(ui.mod>0?' + ':' − ')+Math.abs(ui.mod)+' ('+NOM_ATR[ui.atr]+')';
         html+=` = <b>${ui.jugTotal}</b>`;
         if(ui.estado==='esperaNarrador'){ html+=`<br><span style="color:var(--arena)">Esperando la tirada del narrador…</span>`; }
-        if(ui.estado==='dueloResuelto'){ html+=`<br>Narrador: <b>${ui.narrTotal}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`; }
+        if(ui.estado==='dueloResuelto'){
+          html+=`<br>Narrador: <b>${ui.narrDado}</b>`+
+                (ui.usaMascota?` + 🐾<b>${ui.narrMascota}</b>`:'')+
+                ` = <b>${ui.narrTotal}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`;
+        }
         document.getElementById('resDado').innerHTML=html;
         bT.style.display='none';
         bR.style.display = (ui.estado==='dueloResuelto' && ui.puedeRepetir)?'inline-block':'none';
@@ -1727,7 +1783,8 @@ function render(){
     // ===== VISTA DEL NARRADOR Y DE LOS DEMÁS =====
     else{
       zDados.classList.add('on');
-      document.getElementById('dadoPide').textContent=`Turno de ${ui.jugNombre} — ${NOM_ATR[ui.atr]} (${f(ui.mod)})`;
+      // Se rotula de quién son estos dados: son los del JUGADOR, no los del narrador.
+      document.getElementById('dadoPide').textContent=`Dados de ${ui.jugNombre} — ${NOM_ATR[ui.atr]} (${f(ui.mod)})`;
       const dj=document.getElementById('dadoJug');
       const djMasc2=document.getElementById('dadoJugMasc');
       if(ui.estado==='porTirar'){
@@ -1738,7 +1795,17 @@ function render(){
         if(dj) dj.textContent=ui.jugDado;
         if(djMasc2){ djMasc2.style.display = ui.usaMascota ? 'flex' : 'none'; if(ui.usaMascota) djMasc2.textContent=ui.jugMascota; }
         let html=`${ui.jugNombre}: <b>${ui.jugTotal}</b>`;
-        if(ui.estado==='dueloResuelto') html+=` vs Narrador: <b>${ui.narrTotal}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`;
+        if(ui.estado==='dueloResuelto'){
+          // Los dados del narrador también se muestran, con su propio rótulo, para que
+          // no se confundan con los del jugador (antes solo se veía el total).
+          html+=`<div style="margin-top:10px;padding-top:8px;border-top:1px solid var(--linea)">`+
+                `<div style="font-family:var(--disp);font-size:.72rem;letter-spacing:.18em;`+
+                `text-transform:uppercase;color:var(--arena);margin-bottom:4px">Dados del narrador</div>`+
+                `<b>${ui.narrDado}</b>`+
+                (ui.usaMascota?` + 🐾<b>${ui.narrMascota}</b>`:'')+
+                ` = <b>${ui.narrTotal}</b>`+
+                `<span class="clasif ${ui.cls}">${ui.clasif}</span></div>`;
+        }
         document.getElementById('resDado').innerHTML=html;
       }
       document.getElementById('btnTirar').style.display='none';
@@ -1757,16 +1824,23 @@ function render(){
           : `🎲 <b style="color:var(--acc)">${ui.jugNombre}</b> escribe su acción y tira desde su teléfono…`;
         zEspera.appendChild(txt);
         if(soyAnf){
-          // Botón para invocar la mascota (dado extra para ambos), si no está ya activa
+          // La mascota la decide el JUGADOR desde su teléfono. El narrador solo la
+          // puede invocar si ese jugador está desconectado y va a tirar por él.
           const jt2=ESTADO.jugadores.find(x=>x.id===ui.jugId);
           const a2=jt2?ARQUETIPOS.find(x=>x.id===jt2.arqId):null;
-          if(a2 && a2.mascota && !ui.usaMascota){
+          if(a2 && a2.mascota && !ui.usaMascota && desconectado){
             const bMasc=document.createElement('button');
             bMasc.className='btn secundario'; bMasc.style.marginTop='10px';
             bMasc.textContent=`${a2.mascota.ico} Usar ${a2.mascota.nombre} de ${ui.jugNombre}`;
             bMasc.title=a2.mascota.don;
             bMasc.onclick=()=>anfActivarMascota();
             zEspera.appendChild(bMasc);
+          }
+          if(a2 && a2.mascota && !ui.usaMascota && !desconectado){
+            const n=document.createElement('div');
+            n.style.cssText='color:var(--arena);font-size:.82rem;font-style:italic;margin-top:8px';
+            n.textContent=`${ui.jugNombre} puede llamar a su ${a2.mascota.nombre.toLowerCase()} desde su teléfono antes de tirar.`;
+            zEspera.appendChild(n);
           }
           if(ui.usaMascota){
             const nota=document.createElement('div'); nota.style.cssText='color:#8fbf7a;font-size:.85rem;margin-top:8px';

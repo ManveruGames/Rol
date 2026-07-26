@@ -109,6 +109,10 @@ label{font-family:var(--disp);font-size:.72rem;letter-spacing:.18em;color:var(--
 #zonaDados .pide{font-family:var(--disp);letter-spacing:.1em;font-size:.95rem;color:var(--acc)}
 .dados{display:flex;justify-content:center;gap:16px;margin:16px 0}
 .dado{width:64px;height:64px;border-radius:12px;background:var(--pergamino);color:#241a0d;display:flex;align-items:center;justify-content:center;font-size:2rem;font-family:var(--disp);font-weight:700;box-shadow:0 4px 0 rgba(0,0,0,.4), inset 0 -3px 0 rgba(0,0,0,.15)}
+.dado.d12{width:72px;height:72px;border-radius:16px;background:linear-gradient(135deg,var(--pergamino),#d8c9a8);border:2px solid var(--lampara);position:relative}
+.dado.d12::after{content:'d12';position:absolute;bottom:3px;right:6px;font-size:.5rem;color:#8a7040;font-weight:400;letter-spacing:0}
+.dado.mascota{background:linear-gradient(135deg,#e8dcc0,#c9b896);border-color:#8fbf7a}
+.dado.mascota::after{content:'🐾';font-size:.6rem;bottom:2px;right:4px}
 .dado.girando{animation:girar .09s linear infinite}
 @keyframes girar{0%{transform:rotate(-6deg) translateY(-2px)}50%{transform:rotate(6deg) translateY(2px)}100%{transform:rotate(-6deg) translateY(-2px)}}
 @media (prefers-reduced-motion: reduce){.dado.girando{animation:none}.msg{animation:none}}
@@ -235,7 +239,7 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
         </div>
         <div style="font-size:.78rem;color:var(--arena);font-style:italic;margin-top:4px">Cuéntanos tu plan y luego tira los dados. Es opcional, pero le da vida a la historia.</div>
       </div>
-      <div class="dados"><div class="dado" id="d1">?</div><div class="dado" id="d2">?</div></div>
+      <div class="dados"><div class="dado d12" id="dadoJug">?</div><div class="dado d12 mascota" id="dadoJugMasc" style="display:none">?</div></div>
       <div id="resDado"></div>
       <div id="botonesDado">
         <button class="btn" id="btnTirar" onclick="jugTirar()">Tirar los dados</button>
@@ -271,22 +275,28 @@ const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carism
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
   hab:'Voz firme: +1 extra en tiradas de Carisma para organizar o animar al grupo.',
-  deb:'Carga la responsabilidad del grupo.'},
+  deb:'Carga la responsabilidad del grupo.',
+  mascota:{ico:'🦅', nombre:'Águila', don:'Su águila otea el horizonte: +1 cuando el grupo debe orientarse o ver de lejos.'}},
  {id:'constructor', ico:'🔨', m:'El Constructor', f:'La Artesana', stats:{fuerza:2,agilidad:0,ingenio:1,carisma:-1,fe:1},
   hab:'Manos hábiles: +1 extra al construir, reparar o improvisar con materiales.',
-  deb:'Terco/a: le cuesta aceptar planes ajenos.'},
+  deb:'Terco/a: le cuesta aceptar planes ajenos.',
+  mascota:{ico:'🐂', nombre:'Buey', don:'Su buey carga y arrastra: +1 en trabajos pesados de fuerza.'}},
  {id:'explorador', ico:'🏹', m:'El Explorador', f:'La Exploradora', stats:{fuerza:0,agilidad:2,ingenio:1,carisma:0,fe:0},
   hab:'Ojo agudo: +1 extra al vigilar, rastrear o moverse con sigilo.',
-  deb:'Impulsivo/a: actúa sin consultar.'},
+  deb:'Impulsivo/a: actúa sin consultar.',
+  mascota:{ico:'🐕', nombre:'Perro', don:'Su perro rastrea y alerta: +1 al seguir huellas o detectar peligro.'}},
  {id:'escriba', ico:'📜', m:'El Escriba', f:'La Sabia', stats:{fuerza:-1,agilidad:0,ingenio:2,carisma:1,fe:1},
   hab:'Memoria fiel: +1 extra al razonar con conocimiento, leyes o idiomas.',
-  deb:'Cuerpo frágil ante el esfuerzo prolongado.'},
+  deb:'Cuerpo frágil ante el esfuerzo prolongado.',
+  mascota:{ico:'🕊️', nombre:'Paloma', don:'Su paloma lleva mensajes: +1 al comunicar o coordinar a distancia.'}},
  {id:'cuidador', ico:'🌿', m:'El Cuidador', f:'La Cuidadora', stats:{fuerza:0,agilidad:1,ingenio:1,carisma:1,fe:1},
   hab:'Bálsamo: en cada descanso de acto, el compañero más débil recupera 1 ❤️ extra.',
-  deb:'Se arriesga por otros aunque sea imprudente.'},
+  deb:'Se arriesga por otros aunque sea imprudente.',
+  mascota:{ico:'🐐', nombre:'Cabra', don:'Su cabra da leche y compañía: +1 al conseguir alimento o reconfortar al grupo.'}},
  {id:'pastor', ico:'🐑', m:'El Pastor', f:'La Pastora', stats:{fuerza:1,agilidad:1,ingenio:0,carisma:0,fe:2},
   hab:'Instinto del campo: +1 extra con animales, clima, agua y alimento.',
-  deb:'Desconfía de las ciudades: Carisma −1 en escenas urbanas.'}
+  deb:'Desconfía de las ciudades: Carisma −1 en escenas urbanas.',
+  mascota:{ico:'🐏', nombre:'Carnero', don:'Su carnero guía el rebaño: +1 al conducir animales o abrir camino en el campo.'}}
 ];
 /* Etiquetas de escena → bonos de arquetipo */
 function bonoTag(j, atr, tag){
@@ -754,7 +764,7 @@ function pintarJugadores(turnoNombre){
     const imgSrc = `${CARPETA_IMG}/${j.arqId}-${j.genero}.jpg`;
     d.innerHTML=`<div class="retrato"><img src="${imgSrc}" alt="${j.genero==='m'?a.m:a.f}" loading="lazy" onerror="this.style.display='none';this.parentElement.textContent='${a.ico}'"></div>
       <div class="nom">${j.nombre}${yo}</div>
-      <div class="arq">${j.genero==='m'?a.m:a.f}</div>
+      <div class="arq">${j.genero==='m'?a.m:a.f}${a.mascota?' · '+a.mascota.ico:''}</div>
       <div class="vida">${'❤️'.repeat(j.animo)}${'🖤'.repeat(3-j.animo)}${j.animo===0?' 😵':''}</div>
       <div class="st">F${f(s.fuerza)} A${f(s.agilidad)} I${f(s.ingenio)} C${f(s.carisma)} Fe${f(s.fe)}</div>`;
     cont.appendChild(d);
@@ -950,8 +960,8 @@ function anfRecibe(conn, msg){
   else if(msg.t==='accion'){          // jugador escribió/dictó su acción
     anfRegistrarAccion(msg.texto);
   }
-  else if(msg.t==='tirada'){          // jugador tiró sus dados
-    anfProcesarTirada(msg.d1, msg.d2);
+  else if(msg.t==='tirada'){          // jugador tiró su dado (1d12)
+    anfProcesarTirada(msg.dado, msg.dadoMascota||0);
   }
   else if(msg.t==='repetir'){
     anfRepetir();
@@ -1130,35 +1140,62 @@ function prepararTiradaAnf(fuente, j, escOrig){
 function anfTirarPorJugador(){
   const j=ESTADO.jugadores.find(x=>x.id===ESTADO._tirada.jugId);
   if(j) logPush('sistema','🎲 Dados', `El narrador tira por ${j.nombre}`);
-  const jd1=1+Math.floor(Math.random()*6), jd2=1+Math.floor(Math.random()*6);
-  anfProcesarTirada(jd1,jd2);
-  // e inmediatamente tira el dado del narrador para resolver el duelo
-  const nd1=1+Math.floor(Math.random()*6), nd2=1+Math.floor(Math.random()*6);
-  anfTirarNarrador(nd1,nd2);
+  const usa=ESTADO._usaMascota;
+  anfProcesarTirada(1+Math.floor(Math.random()*12), usa?1+Math.floor(Math.random()*12):0);
+  anfTirarNarrador(1+Math.floor(Math.random()*12), usa?1+Math.floor(Math.random()*12):0);
 }
 function anfAplicarEleccion(idx){
   const escena=ESTADO._escenaPend; if(!escena) return;
   const op=escena.ops[idx];
   const j=ESTADO.jugadores.find(x=>x.id===ESTADO.turnoActual);
   logPush('sistema','🗳️ Decisión', op.t);
+  // En vez de ir directo a los dados, el narrador aprueba o ajusta la propuesta
   prepararTiradaAnf(op, j, escena);
+  ESTADO._tirada.propuesta = op.t;  // lo que el jugador eligió
+  pedirAprobacionNarrador(j);
+}
+/* Muestra al narrador la propuesta del jugador para aprobarla o cambiarla */
+function pedirAprobacionNarrador(j){
+  const T=ESTADO._tirada;
+  ESTADO.ui={modo:'aprobacion', jugId:T.jugId, jugNombre:j?j.nombre:ESTADO.turnoNombre,
+    atr:T.atr, mod:T.mod, propuesta:T.propuesta||'', accion:T.accion||''};
   anfDifundir();
 }
-function anfProcesarTirada(d1,d2){
+/* El narrador aprueba la propuesta (opcionalmente reescrita) y pasa a los dados */
+function anfAprobarAccion(textoAjustado){
   const T=ESTADO._tirada; if(!T) return;
-  const totalJug=d1+d2+T.mod;
-  // El jugador ya tiró. Ahora falta que el NARRADOR tire su duelo.
-  ESTADO._duelo={ jugD1:d1, jugD2:d2, jugMod:T.mod, jugTotal:totalJug };
+  const j=ESTADO.jugadores.find(x=>x.id===T.jugId);
+  if(textoAjustado && textoAjustado.trim()){
+    // el narrador cambió la acción: registrarla y usarla
+    T.accion=textoAjustado.trim();
+    logPush('sistema','✒️ El narrador ajusta', textoAjustado.trim());
+  }
   ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
-    estado:'esperaNarrador', jugD1:d1, jugD2:d2, jugTotal:totalJug,
+    estado:'porTirar', accion:T.accion||''};
+  anfDifundir();
+}
+function anfProcesarTirada(dado, dadoMascota){
+  const T=ESTADO._tirada; if(!T) return;
+  const usaMascota = ESTADO._usaMascota || false;
+  const extra = usaMascota ? (dadoMascota||0) : 0;
+  const totalJug=dado+extra+T.mod;
+  const j=ESTADO.jugadores.find(x=>x.id===T.jugId);
+  const a=j?ARQUETIPOS.find(x=>x.id===j.arqId):null;
+  // El jugador ya tiró. Ahora falta que el NARRADOR tire su duelo.
+  ESTADO._duelo={ jugDado:dado, jugMascota:extra, jugMod:T.mod, jugTotal:totalJug, usaMascota,
+                  arqId:j?j.arqId:null, mascotaNombre:a&&a.mascota?a.mascota.nombre:'' };
+  ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
+    estado:'esperaNarrador', jugDado:dado, jugMascota:extra, jugTotal:totalJug, usaMascota,
+    arqId:j?j.arqId:null, mascotaNombre:a&&a.mascota?a.mascota.nombre:'',
     accion: T.accion||''};
   anfDifundir();
 }
-/* El narrador tira su dado para el duelo */
-function anfTirarNarrador(nd1,nd2){
+/* El narrador tira su dado (1d12) para el duelo; si hay mascota, también tira su dado extra */
+function anfTirarNarrador(dadoNarr, dadoNarrMascota){
   const T=ESTADO._tirada, D=ESTADO._duelo; if(!T||!D) return;
-  const narrTotal=nd1+nd2;
-  D.narrD1=nd1; D.narrD2=nd2; D.narrTotal=narrTotal;
+  const extra = D.usaMascota ? (dadoNarrMascota||0) : 0;
+  const narrTotal = dadoNarr + extra;
+  D.narrDado=dadoNarr; D.narrMascota=extra; D.narrTotal=narrTotal;
   // Duelo: si el jugador iguala o supera al narrador, cumple.
   let clasif, cls, gano;
   if(D.jugTotal > narrTotal){ clasif='¡LO LOGRA!'; cls='exito'; gano='exito'; }
@@ -1171,10 +1208,26 @@ function anfTirarNarrador(nd1,nd2){
   D.sugerido = (sugerido||'').replaceAll('{n}', ESTADO.turnoNombre);
   ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
     estado:'dueloResuelto',
-    jugD1:D.jugD1, jugD2:D.jugD2, jugTotal:D.jugTotal,
-    narrD1:nd1, narrD2:nd2, narrTotal,
+    jugDado:D.jugDado, jugMascota:D.jugMascota, jugTotal:D.jugTotal,
+    narrDado:dadoNarr, narrMascota:extra, narrTotal, usaMascota:D.usaMascota,
+    arqId:D.arqId||null, mascotaNombre:D.mascotaNombre||'',
     clasif, cls, gano, sugerido:D.sugerido, accion:T.accion||'',
     puedeRepetir: (ESTADO.jugadores.find(x=>x.id===T.jugId).animo>0 && gano==='fallo')};
+  ESTADO._usaMascota=false;  // se consume tras el duelo
+  anfDifundir();
+}
+/* El narrador activa la mascota del jugador en turno: dado extra para ambos */
+function anfActivarMascota(){
+  const T=ESTADO._tirada; if(!T) return;
+  const j=ESTADO.jugadores.find(x=>x.id===T.jugId);
+  const a=j?ARQUETIPOS.find(x=>x.id===j.arqId):null;
+  if(!a||!a.mascota) return;
+  ESTADO._usaMascota=true;
+  logPush('sistema','🐾 Mascota', `${j.nombre} llama a su ${a.mascota.nombre.toLowerCase()}. ${a.mascota.don}`);
+  // re-emitir el estado porTirar para que aparezca el dado extra
+  ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
+    estado:'porTirar', accion:T.accion||'', usaMascota:true,
+    mascotaIco:a.mascota.ico, mascotaNombre:a.mascota.nombre, arqId:j.arqId, genero:j.genero};
   anfDifundir();
 }
 function anfRepetir(){
@@ -1182,7 +1235,7 @@ function anfRepetir(){
   if(!j||j.animo<=0) return;
   j.animo--;
   logPush('sistema','⚖️ Ánimo', `${j.nombre} gasta 1 ❤️ para intentarlo de nuevo (${j.animo} restantes)`);
-  ESTADO._duelo=null;
+  ESTADO._duelo=null; ESTADO._usaMascota=false;
   ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:j.nombre, atr:T.atr, mod:T.mod, notas:T.notas, estado:'porTirar', accion:T.accion||''};
   anfDifundir();
 }
@@ -1190,7 +1243,6 @@ function anfRepetir(){
 function anfAceptarTirada(textoFinal){    // llamado por el anfitrión-narrador
   const T=ESTADO._tirada, D=ESTADO._duelo, j=ESTADO.jugadores.find(x=>x.id===T.jugId);
   if(!D) return;
-  const etiqueta = D.gano==='exito'?'✅ Logrado':(D.gano==='parcial'?'⚠️ A duras penas':'❌ Complicación');
   logPush('sistema','🎲 Duelo', `${j.nombre} ${D.jugTotal} vs Narrador ${D.narrTotal} — ${D.clasif}`);
   const texto = (textoFinal && textoFinal.trim()) ? textoFinal.trim() : D.sugerido;
   logPush('narrador','📜 Narrador', texto);
@@ -1286,7 +1338,7 @@ function montarElegirPj(){
   if(a){ det.style.display='block'; const s=a.stats;
     const imgSrc=`${CARPETA_IMG}/${a.id}-${jugTmp.genero}.jpg`;
     det.innerHTML=`<div class="retrato-grande"><img src="${imgSrc}" alt="${jugTmp.genero==='m'?a.m:a.f}" onerror="this.parentElement.style.display='none'"></div>
-      ✋ <b style="color:var(--pergamino)">Habilidad:</b> ${a.hab}<br>⚖️ <b style="color:var(--pergamino)">Debilidad:</b> ${a.deb}
+      ✋ <b style="color:var(--pergamino)">Habilidad:</b> ${a.hab}<br>⚖️ <b style="color:var(--pergamino)">Debilidad:</b> ${a.deb}${a.mascota?'<br>'+a.mascota.ico+' <b style="color:var(--pergamino)">Mascota ('+a.mascota.nombre+'):</b> '+a.mascota.don:''}
       <div class="stats">FUE ${f(s.fuerza)} · AGI ${f(s.agilidad)} · ING ${f(s.ingenio)} · CAR ${f(s.carisma)} · FE ${f(s.fe)}</div>`;
   } else det.style.display='none';
   document.getElementById('btnConfirmarPj').disabled=!jugTmp.arqId;
@@ -1322,56 +1374,48 @@ function jugTirar(){
     if(ROL==='anfitrion') anfRegistrarAccion(accion);
     else jugEnviar({t:'accion', texto:accion});
   }
-  // Calcular el resultado UNA sola vez (no depender del DOM que puede recrearse)
-  const resultado1 = 1+Math.floor(Math.random()*6);
-  const resultado2 = 1+Math.floor(Math.random()*6);
-  const d1=document.getElementById('d1'), d2=document.getElementById('d2');
-  document.getElementById('btnTirar').disabled=true;
-  if(!d1||!d2){
-    if(ROL==='anfitrion') anfProcesarTirada(resultado1,resultado2);
-    else jugEnviar({t:'tirada', d1:resultado1, d2:resultado2});
-    return;
-  }
-  d1.classList.add('girando'); d2.classList.add('girando');
+  const usaMascota = (ESTADO.ui && ESTADO.ui.usaMascota) || false;
+  // Dados calculados UNA vez (no dependen del DOM).
+  const resultado = 1+Math.floor(Math.random()*12);
+  const resMascota = usaMascota ? 1+Math.floor(Math.random()*12) : 0;
+  const bt=document.getElementById('btnTirar'); if(bt) bt.disabled=true;
+  const el=document.getElementById('dadoJug');
+  const enviar=()=>{ if(ROL==='anfitrion') anfProcesarTirada(resultado,resMascota); else jugEnviar({t:'tirada', dado:resultado, dadoMascota:resMascota}); };
+  if(!el){ enviar(); return; }
+  el.classList.add('girando');
+  const em=document.getElementById('dadoJugMasc'); if(em) em.classList.add('girando');
   let ticks=0;
   const int=setInterval(()=>{
-    const e1=document.getElementById('d1'), e2=document.getElementById('d2');
-    if(e1) e1.textContent=1+Math.floor(Math.random()*6);
-    if(e2) e2.textContent=1+Math.floor(Math.random()*6);
+    const e=document.getElementById('dadoJug'); if(e) e.textContent=1+Math.floor(Math.random()*12);
+    const e2=document.getElementById('dadoJugMasc'); if(e2) e2.textContent=1+Math.floor(Math.random()*12);
     if(++ticks>=10){
       clearInterval(int);
-      const f1=document.getElementById('d1'), f2=document.getElementById('d2');
-      if(f1){ f1.classList.remove('girando'); f1.textContent=resultado1; }
-      if(f2){ f2.classList.remove('girando'); f2.textContent=resultado2; }
-      // usar SIEMPRE el resultado calculado, no lo que diga el DOM
-      if(ROL==='anfitrion') anfProcesarTirada(resultado1,resultado2);
-      else jugEnviar({t:'tirada', d1:resultado1, d2:resultado2});
-      const bt=document.getElementById('btnTirar'); if(bt) bt.disabled=false;
+      const f=document.getElementById('dadoJug'); if(f){ f.classList.remove('girando'); f.textContent=resultado; }
+      const f2=document.getElementById('dadoJugMasc'); if(f2){ f2.classList.remove('girando'); f2.textContent=resMascota; }
+      enviar();
+      const b=document.getElementById('btnTirar'); if(b) b.disabled=false;
     }
   },90);
 }
-/* El narrador tira su dado (duelo) */
+/* El narrador tira su dado (1d12) para el duelo; + dado de mascota si aplica */
 function narradorTira(){
   const bt=document.getElementById('btnTirarNarrador'); if(bt) bt.disabled=true;
-  // Calcular el resultado UNA sola vez (independiente del DOM y de la animación)
-  const resultado1 = 1+Math.floor(Math.random()*6);
-  const resultado2 = 1+Math.floor(Math.random()*6);
-  const d1=document.getElementById('nd1'), d2=document.getElementById('nd2');
-  if(!d1||!d2){ anfTirarNarrador(resultado1, resultado2); return; }
-  d1.classList.add('girando'); d2.classList.add('girando');
+  const usaMascota = (ESTADO._duelo && ESTADO._duelo.usaMascota) || false;
+  const resultado = 1+Math.floor(Math.random()*12);
+  const resMascota = usaMascota ? 1+Math.floor(Math.random()*12) : 0;
+  const el=document.getElementById('dadoNarr');
+  if(!el){ anfTirarNarrador(resultado,resMascota); return; }
+  el.classList.add('girando');
+  const em=document.getElementById('dadoNarrMasc'); if(em) em.classList.add('girando');
   let ticks=0;
   const int=setInterval(()=>{
-    // durante el giro mostramos números al azar (solo visual)
-    const e1=document.getElementById('nd1'), e2=document.getElementById('nd2');
-    if(e1) e1.textContent=1+Math.floor(Math.random()*6);
-    if(e2) e2.textContent=1+Math.floor(Math.random()*6);
+    const e=document.getElementById('dadoNarr'); if(e) e.textContent=1+Math.floor(Math.random()*12);
+    const e2=document.getElementById('dadoNarrMasc'); if(e2) e2.textContent=1+Math.floor(Math.random()*12);
     if(++ticks>=10){
       clearInterval(int);
-      const f1=document.getElementById('nd1'), f2=document.getElementById('nd2');
-      if(f1){ f1.classList.remove('girando'); f1.textContent=resultado1; }
-      if(f2){ f2.classList.remove('girando'); f2.textContent=resultado2; }
-      // usar SIEMPRE el resultado calculado, no lo que diga el DOM
-      anfTirarNarrador(resultado1, resultado2);
+      const f=document.getElementById('dadoNarr'); if(f){ f.classList.remove('girando'); f.textContent=resultado; }
+      const f2=document.getElementById('dadoNarrMasc'); if(f2){ f2.classList.remove('girando'); f2.textContent=resMascota; }
+      anfTirarNarrador(resultado,resMascota);
     }
   },90);
 }
@@ -1381,6 +1425,27 @@ function jugElegir(idx){ if(ROL==='anfitrion') anfAplicarEleccion(idx); else jug
 
 /* ==================== RENDER (reacciona al ESTADO) ==================== */
 let _logDibujado=0, _uiFirma='';
+
+/* Bloque visual de la mascota invocada (imagen + leyenda).
+   Se usa en la pantalla del jugador en turno, en la del narrador y en la de los demás.
+   Si la imagen Imagenes/mascota-<arqId>.jpg no existe, se oculta sola y queda la leyenda. */
+function nodoMascota(ui, leyenda){
+  const wrap=document.createElement('div');
+  wrap.dataset.masc = (ui.arqId||'')+'|'+leyenda;
+  wrap.style.cssText='text-align:center;margin-bottom:10px';
+  const im=document.createElement('img');
+  im.src=`${CARPETA_IMG}/mascota-${ui.arqId}.jpg`;
+  im.alt=ui.mascotaNombre||'Mascota';
+  im.style.cssText='max-width:160px;max-height:120px;border-radius:10px;border:1px solid var(--linea)';
+  im.onerror=function(){ this.style.display='none'; };
+  wrap.appendChild(im);
+  const cap=document.createElement('div');
+  cap.style.cssText='color:#8fbf7a;font-size:.85rem;margin-top:4px';
+  cap.textContent=leyenda;
+  wrap.appendChild(cap);
+  return wrap;
+}
+
 function render(){
   // --- Fase lobby / eligiendo escenario ---
   if(ESTADO.fase==='lobby'){
@@ -1533,6 +1598,38 @@ function render(){
     }
     return;
   }
+  if(ui.modo==='aprobacion'){
+    // El jugador ya eligió; el narrador aprueba o reescribe antes de tirar
+    if(soyAnf){
+      zEspera.style.display='block'; zEspera.innerHTML='';
+      const lbl=document.createElement('div');
+      lbl.innerHTML=`<b style="color:var(--acc)">${ui.jugNombre}</b> quiere: <i>"${ui.propuesta||ui.accion||'—'}"</i>`;
+      lbl.style.marginBottom='8px'; zEspera.appendChild(lbl);
+      const info=document.createElement('div');
+      info.style.cssText='color:var(--arena);font-size:.85rem;margin-bottom:8px';
+      info.textContent='Puedes aprobar esta acción tal cual, o escribir otra distinta para guiar la historia. Luego se tiran los dados.';
+      zEspera.appendChild(info);
+      const ta=document.createElement('textarea'); ta.id='taAjuste';
+      ta.style.cssText='width:100%;min-height:70px;background:var(--noche);border:1px solid var(--linea);border-radius:8px;color:var(--pergamino);font-family:var(--body);font-size:1rem;padding:10px;resize:vertical';
+      ta.placeholder='(Opcional) Escribe aquí una acción distinta a la que propuso el jugador…';
+      zEspera.appendChild(ta);
+      const fila=document.createElement('div'); fila.style.cssText='display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center';
+      const bOk=document.createElement('button'); bOk.className='btn'; bOk.textContent='✓ Aprobar y tirar dados';
+      bOk.onclick=()=>anfAprobarAccion('');
+      const bCambio=document.createElement('button'); bCambio.className='btn secundario'; bCambio.textContent='✒️ Usar mi versión y tirar';
+      bCambio.onclick=()=>{ const v=document.getElementById('taAjuste').value; anfAprobarAccion(v); };
+      fila.appendChild(bOk); fila.appendChild(bCambio);
+      zEspera.appendChild(fila);
+    }else{
+      zEspera.style.display='block'; zEspera.innerHTML='';
+      const txt=document.createElement('div');
+      txt.innerHTML = miTurno
+        ? `El narrador está revisando tu propuesta…`
+        : `El narrador revisa la propuesta de <b style="color:var(--acc)">${ui.jugNombre}</b>…`;
+      zEspera.appendChild(txt);
+    }
+    return;
+  }
   if(ui.modo==='tirada'){
     const firma=JSON.stringify(ui)+'|'+ROL;
     const jt=ESTADO.jugadores.find(x=>x.id===ui.jugId);
@@ -1544,35 +1641,58 @@ function render(){
       document.getElementById('dadoPide').textContent=`Tu tirada: ${NOM_ATR[ui.atr]} (${f(ui.mod)})`+(ui.notas&&ui.notas.length?` · ${ui.notas.join(', ')}`:'');
       const bT=document.getElementById('btnTirar'), bR=document.getElementById('btnRepetir'), bA=document.getElementById('btnAceptar');
       const campoAccion=document.getElementById('campoAccion');
+      const djMasc=document.getElementById('dadoJugMasc');
       if(ui.estado==='porTirar'){
         if(campoAccion) campoAccion.style.display='block';  // mostrar campo para escribir/dictar
+        if(djMasc) djMasc.style.display = ui.usaMascota ? 'flex' : 'none';
         if(_uiFirma!==firma){
-          document.getElementById('d1').textContent='?'; document.getElementById('d2').textContent='?'; document.getElementById('resDado').innerHTML='';
+          const dj=document.getElementById('dadoJug'); if(dj) dj.textContent='?';
+          if(djMasc) djMasc.textContent='?';
+          document.getElementById('resDado').innerHTML = ui.usaMascota ? `<span style="color:#8fbf7a">🐾 ${ui.mascotaNombre||'Mascota'} en juego: tiras un dado extra</span>` : '';
           const inp=document.getElementById('inpAccion'); if(inp) inp.value='';  // limpiar de turnos anteriores
         }
         bT.style.display='inline-block'; bR.style.display='none'; bA.style.display='none';
       }else{
-        // ya tiró: mostrar sus dados y ocultar el campo de acción
+        // ya tiró: mostrar su dado y ocultar el campo de acción
         if(campoAccion) campoAccion.style.display='none';
-        document.getElementById('d1').textContent=ui.jugD1; document.getElementById('d2').textContent=ui.jugD2;
-        let html=`Tú: ${ui.jugD1} + ${ui.jugD2} ${ui.mod?(ui.mod>0?'+ ':'− ')+Math.abs(ui.mod)+' ('+NOM_ATR[ui.atr]+')':''} = <b>${ui.jugTotal}</b>`;
+        const dj=document.getElementById('dadoJug'); if(dj) dj.textContent=ui.jugDado;
+        if(djMasc){ djMasc.style.display = ui.usaMascota ? 'flex' : 'none'; if(ui.usaMascota) djMasc.textContent=ui.jugMascota; }
+        let html=`Tú: <b>${ui.jugDado}</b>`;
+        if(ui.usaMascota) html+=` + 🐾<b>${ui.jugMascota}</b>`;
+        if(ui.mod) html+=(ui.mod>0?' + ':' − ')+Math.abs(ui.mod)+' ('+NOM_ATR[ui.atr]+')';
+        html+=` = <b>${ui.jugTotal}</b>`;
         if(ui.estado==='esperaNarrador'){ html+=`<br><span style="color:var(--arena)">Esperando la tirada del narrador…</span>`; }
-        if(ui.estado==='dueloResuelto'){ html+=`<br>Narrador: ${ui.narrD1} + ${ui.narrD2} = <b>${ui.narrTotal}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`; }
+        if(ui.estado==='dueloResuelto'){ html+=`<br>Narrador: <b>${ui.narrTotal}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`; }
         document.getElementById('resDado').innerHTML=html;
         bT.style.display='none';
         bR.style.display = (ui.estado==='dueloResuelto' && ui.puedeRepetir)?'inline-block':'none';
         bA.style.display='none';  // el jugador ya no publica; lo hace el narrador
+      }
+      // Mascota invocada: el jugador ve a su animal desde que el narrador la activa,
+      // no solo después de tirar. Solo se redibuja si cambió (evita parpadeo por difusión).
+      if(ui.usaMascota && ui.arqId){
+        const leyenda = `🐾 Tu ${(ui.mascotaNombre||'mascota').toLowerCase()} entra en acción: tiras un dado extra`;
+        const ya = zEspera.querySelector('[data-masc]');
+        if(!ya || ya.dataset.masc !== (ui.arqId+'|'+leyenda)){
+          zEspera.innerHTML='';
+          zEspera.appendChild(nodoMascota(ui, leyenda));
+        }
+        zEspera.style.display='block';
       }
     }
     // ===== VISTA DEL NARRADOR Y DE LOS DEMÁS =====
     else{
       zDados.classList.add('on');
       document.getElementById('dadoPide').textContent=`Turno de ${ui.jugNombre} — ${NOM_ATR[ui.atr]} (${f(ui.mod)})`;
-      // Mostrar dados del jugador
+      const dj=document.getElementById('dadoJug');
+      const djMasc2=document.getElementById('dadoJugMasc');
       if(ui.estado==='porTirar'){
-        document.getElementById('d1').textContent='?'; document.getElementById('d2').textContent='?'; document.getElementById('resDado').innerHTML='';
+        if(dj) dj.textContent='?';
+        if(djMasc2) djMasc2.style.display = ui.usaMascota ? 'flex' : 'none';
+        document.getElementById('resDado').innerHTML = ui.usaMascota ? `<span style="color:#8fbf7a">🐾 ${ui.mascotaNombre||'Mascota'} en juego</span>` : '';
       }else{
-        document.getElementById('d1').textContent=ui.jugD1; document.getElementById('d2').textContent=ui.jugD2;
+        if(dj) dj.textContent=ui.jugDado;
+        if(djMasc2){ djMasc2.style.display = ui.usaMascota ? 'flex' : 'none'; if(ui.usaMascota) djMasc2.textContent=ui.jugMascota; }
         let html=`${ui.jugNombre}: <b>${ui.jugTotal}</b>`;
         if(ui.estado==='dueloResuelto') html+=` vs Narrador: <b>${ui.narrTotal}</b><span class="clasif ${ui.cls}">${ui.clasif}</span>`;
         document.getElementById('resDado').innerHTML=html;
@@ -1583,12 +1703,32 @@ function render(){
 
       zEspera.style.display='block'; zEspera.innerHTML='';
       if(ui.estado==='porTirar'){
+        // Si la mascota ya fue invocada, se ve la ilustración desde este momento
+        if(ui.usaMascota && ui.arqId){
+          zEspera.appendChild(nodoMascota(ui, `🐾 ${ui.mascotaNombre||'Mascota'} de ${ui.jugNombre} entra en acción`));
+        }
         const txt=document.createElement('div');
         txt.innerHTML = desconectado
           ? `⏳ Le toca a <b style="color:var(--acc)">${ui.jugNombre}</b>, pero está desconectado.`
           : `🎲 <b style="color:var(--acc)">${ui.jugNombre}</b> escribe su acción y tira desde su teléfono…`;
         zEspera.appendChild(txt);
         if(soyAnf){
+          // Botón para invocar la mascota (dado extra para ambos), si no está ya activa
+          const jt2=ESTADO.jugadores.find(x=>x.id===ui.jugId);
+          const a2=jt2?ARQUETIPOS.find(x=>x.id===jt2.arqId):null;
+          if(a2 && a2.mascota && !ui.usaMascota){
+            const bMasc=document.createElement('button');
+            bMasc.className='btn secundario'; bMasc.style.marginTop='10px';
+            bMasc.textContent=`${a2.mascota.ico} Usar ${a2.mascota.nombre} de ${ui.jugNombre}`;
+            bMasc.title=a2.mascota.don;
+            bMasc.onclick=()=>anfActivarMascota();
+            zEspera.appendChild(bMasc);
+          }
+          if(ui.usaMascota){
+            const nota=document.createElement('div'); nota.style.cssText='color:#8fbf7a;font-size:.85rem;margin-top:8px';
+            nota.textContent=`🐾 ${ui.mascotaNombre} activa: ${ui.jugNombre} y el narrador tirarán un dado extra.`;
+            zEspera.appendChild(nota);
+          }
           const bSkip=document.createElement('button');
           bSkip.className='btn secundario'; bSkip.style.marginTop='10px';
           bSkip.textContent = desconectado ? 'Tirar por '+ui.jugNombre : 'Saltar / tirar por '+ui.jugNombre;
@@ -1598,15 +1738,18 @@ function render(){
       }
       else if(ui.estado==='esperaNarrador'){
         // ¡Turno del narrador de tirar su duelo!
+        if(ui.usaMascota && ui.arqId){
+          zEspera.appendChild(nodoMascota(ui, `🐾 ${ui.mascotaNombre||'Mascota'} entra en acción`));
+        }
         if(ui.accion){ const a=document.createElement('div'); a.style.cssText='font-style:italic;color:var(--arena);margin-bottom:8px'; a.textContent='"'+ui.accion+'"'; zEspera.appendChild(a); }
         if(soyAnf){
           const txt=document.createElement('div');
           txt.innerHTML=`<b style="color:var(--acc)">${ui.jugNombre}</b> sacó <b>${ui.jugTotal}</b>. ¡Ahora tira tú, narrador!`;
           zEspera.appendChild(txt);
           const dz=document.createElement('div'); dz.className='dados'; dz.style.marginTop='10px';
-          dz.innerHTML='<div class="dado" id="nd1">?</div><div class="dado" id="nd2">?</div>';
+          dz.innerHTML='<div class="dado d12" id="dadoNarr">?</div>'+(ui.usaMascota?'<div class="dado d12 mascota" id="dadoNarrMasc">?</div>':'');
           zEspera.appendChild(dz);
-          const b=document.createElement('button'); b.className='btn'; b.id='btnTirarNarrador'; b.textContent='🎲 Tirar dado del narrador';
+          const b=document.createElement('button'); b.className='btn'; b.id='btnTirarNarrador'; b.textContent = ui.usaMascota ? '🎲 Tirar dados del narrador (con mascota)' : '🎲 Tirar dado del narrador (1-12)';
           b.onclick=narradorTira; zEspera.appendChild(b);
         }else{
           const txt=document.createElement('div');
@@ -1615,6 +1758,9 @@ function render(){
         }
       }
       else if(ui.estado==='dueloResuelto'){
+        if(ui.usaMascota && ui.arqId){
+          zEspera.appendChild(nodoMascota(ui, `🐾 ${ui.mascotaNombre||'Mascota'} intervino en esta tirada`));
+        }
         if(soyAnf){
           // El narrador ve el texto sugerido, editable, y lo publica
           const lbl=document.createElement('div');

@@ -288,7 +288,7 @@ const CARPETA_IMG = 'Imagenes';
 /* Versión del archivo. Súbela cada vez que publiques cambios: si un dispositivo
    quedó con una copia vieja en caché, el juego lo detecta y avisa en vez de
    fallar con números raros. */
-const VERSION = '12d-qr-2';
+const VERSION = '13d-eden-grafo-1';
 const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carisma:'Carisma', fe:'Fe'};
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
@@ -335,74 +335,182 @@ function bonoTag(j, atr, tag){
 const ESCENARIOS = [
 /* ---------- 1. EDÉN ---------- */
 {id:'eden', ico:'🌿', color:'#7ba763', nom:'Al este del Edén', cita:'Génesis 3 y 4',
- desc:'La primera familia humana debe sobrevivir su primer año fuera del jardín.',
+ desc:'La primera familia humana debe sobrevivir su primer año fuera del jardín. Cada decisión y cada tirada cambian el camino: no hay dos partidas iguales.',
  nomM:['Set','Noam','Quenan','Enós'], nomF:['Azura','Lía','Milca','Noela'],
  intro:'La espada de fuego brilla a sus espaldas. Delante, un valle desconocido: hermoso, pero indiferente. El sol cae y hay que decidirlo todo por primera vez: dónde vivir, qué comer, cómo seguir adelante.',
- escenas:[
-  {acto:1, tit:'El valle desconocido', tipo:'tirada', atr:'ingenio', tag:'saber', pref:'escriba',
+ grafo:true, inicio:'valle',
+ /* Texto extra que se añade al final según lo que haya pasado en el camino
+    (no cambia CUÁL final se alcanza, solo lo enriquece con lo vivido). */
+ extras:{
+  lazos_externos:'Y esta noche, junto al altar, no están del todo solos: en el horizonte brilla otra fogata — la de aquella familia que, en algún momento del año, decidieron no dejar pasar de largo. ',
+  aislados:'Han pasado este primer año solos, por decisión propia más de una vez; esta noche, mirando el único fuego encendido en kilómetros a la redonda, algunos se preguntan en silencio si el año que viene la respuesta será distinta. '
+ },
+ epilogo:'El primer año fuera del Edén ha terminado.\n\n{lista}\n\nLa puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes. La senda continúa.',
+ nodos:{
+
+  /* ================= ACTO 1 — LOS PRIMEROS DÍAS ================= */
+  valle:{acto:1, tit:'El valle desconocido', tipo:'tirada', atr:'ingenio', tag:'saber', pref:'escriba',
    txt:'Hay que elegir dónde asentarse antes del anochecer. {n} estudia el terreno: un arroyo al norte, una cueva al este, una pradera abierta al sur.',
-   e:'{n} encuentra el lugar perfecto: una loma junto al arroyo, protegida del viento y con tierra suave. La familia respira aliviada.',
-   p:'{n} elige la loma junto al arroyo… aunque descubren tarde que el suelo es pedregoso. Servirá, pero arar costará el doble.',
-   f:'La discusión sobre el sitio consume la tarde. Acampan a la intemperie y la primera noche fuera del jardín es fría y larga.'},
-  {acto:1, tit:'El primer refugio', tipo:'tirada', atr:'fuerza', tag:'construir', pref:'constructor',
+   e:{txt:'{n} encuentra el lugar perfecto: una loma junto al arroyo, protegida del viento y con tierra suave. La familia respira aliviada.', next:'refugio'},
+   p:{txt:'{n} elige la loma junto al arroyo… aunque descubren tarde que el suelo es pedregoso. Servirá, pero arar costará el doble.', next:'refugio'},
+   f:{txt:'La discusión sobre el sitio consume la tarde. Acampan a la intemperie y la primera noche fuera del jardín es fría y larga.', next:'valle_dificil'}},
+
+  valle_dificil:{acto:1, tit:'La primera noche', tipo:'tirada', atr:'fuerza', tag:'campo',
+   txt:'La intemperie pasa factura: hace frío y no hay agua cerca. Antes de seguir, {n} tiene que encontrar deprisa un reparo, aunque sea provisional, mientras el resto tirita junto al fuego.',
+   e:{txt:'{n} da con un saliente de roca que corta el viento; no es gran cosa, pero basta para pasar la noche sin perder más calor del necesario. Al alba, todos siguen adelante con las fuerzas repuestas.', next:'refugio'},
+   p:{txt:'El reparo que encuentra {n} protege del viento, no del frío. La noche es larga, pero nadie enferma.', next:'refugio'},
+   f:{txt:'No hay reparo que valga esa noche. Amanecen ateridos y de mal humor, y el retraso les cuesta parte de la mañana siguiente.', next:'refugio'}},
+
+  refugio:{acto:1, tit:'El primer refugio', tipo:'tirada', atr:'fuerza', tag:'construir', pref:'constructor',
    txt:'Nubes oscuras se acumulan en el horizonte. {n} dirige la construcción de un abrigo con ramas, piedra y barro antes de que llegue la tormenta.',
-   e:'Las manos aprenden rápido. El refugio queda firme y seco; cuando la lluvia azota esa noche, dentro solo se oye el tamborileo en el techo.',
-   p:'El refugio resiste… casi todo. Una esquina gotea toda la noche y alguien duerme mojado, pero la familia está a salvo.',
-   f:'El viento arranca el techo a medio armar. Pasan la tormenta abrazados bajo una cornisa de roca, empapados y en silencio.'},
-  {acto:1, tit:'El pan de cada día', tipo:'tirada', atr:'agilidad', tag:'campo',
+   e:{txt:'Las manos aprenden rápido. El refugio queda firme y seco; cuando la lluvia azota esa noche, dentro solo se oye el tamborileo en el techo.', next:'provision'},
+   p:{txt:'El refugio resiste… casi todo. Una esquina gotea toda la noche y alguien duerme mojado, pero la familia está a salvo.', next:'provision'},
+   f:{txt:'El viento arranca el techo a medio armar. La tormenta llega antes de que haya nada firme en pie.', next:'refugio_emergencia'}},
+
+  refugio_emergencia:{acto:1, tit:'Refugio de emergencia', tipo:'tirada', atr:'ingenio', tag:'construir',
+   txt:'{n} tiene que improvisar algo, con lo que haya a mano, antes de que el agua lo empape todo.',
+   e:{txt:'Con pieles, ramas trenzadas y una determinación feroz, {n} arma un reparo de emergencia que aguanta lo peor de la tormenta. No es bonito, pero cumple.', next:'provision'},
+   p:{txt:'El reparo improvisado se sostiene a medias; alguien termina la noche empapado, pero nadie a la intemperie total.', next:'provision'},
+   f:{txt:'No hay tiempo ni material para nada firme. La familia entera pasa la tormenta apretujada bajo una peña, mojada hasta los huesos.', next:'provision'}},
+
+  provision:{acto:1, tit:'El pan de cada día', tipo:'tirada', atr:'agilidad', tag:'campo',
    txt:'Las provisiones se acaban. {n} sale a buscar alimento: frutos silvestres, raíces, huevos… pero los animales ya no se acercan mansos como antes.',
-   e:'{n} vuelve al atardecer con el manto lleno: higos silvestres, raíces dulces y un panal abandonado. Esta noche hay banquete.',
-   p:'{n} consigue frutos suficientes para hoy, aunque unas zarzas le dejan los brazos marcados. Mañana habrá que ir más lejos.',
-   f:'Los frutos altos se escapan y una rama cede bajo su peso. {n} vuelve con las manos casi vacías y el orgullo magullado. Se reparte lo poco que hay.'},
-  {acto:2, tit:'Espinos y cardos', tipo:'tirada', atr:'fuerza', tag:'construir',
+   e:{txt:'{n} vuelve al atardecer con el manto lleno: higos silvestres, raíces dulces y un panal abandonado. Esta noche hay banquete.', next:'agua'},
+   p:{txt:'{n} consigue frutos suficientes para hoy, aunque unas zarzas le dejan los brazos marcados. Mañana habrá que ir más lejos.', next:'agua'},
+   f:{txt:'Los frutos altos se escapan y una rama cede bajo su peso. {n} vuelve con las manos casi vacías y el orgullo magullado. Se reparte lo poco que hay.', next:'agua'}},
+
+  agua:{acto:1, tit:'La fuente', tipo:'tirada', atr:'ingenio', tag:'saber',
+   txt:'El arroyo cercano basta para beber, pero no para todo: hace falta un sitio fijo de agua limpia antes de que lleguen los calores. {n} explora la ribera buscando un manantial o un remanso seguro.',
+   e:{txt:'{n} encuentra un manantial de agua fresca escondido entre las rocas, a un paso corto del refugio. Nunca más tendrán que preocuparse por el agua.', next:'vecinos'},
+   p:{txt:'El único remanso decente queda un buen trecho a pie. Servirá, aunque cargar agua todos los días será tarea de todos.', next:'vecinos'},
+   f:{txt:'El arroyo se enturbia con las primeras lluvias y no hay manantial a la vista. Tendrán que hervir el agua y confiar en que alcance.', next:'vecinos'}},
+
+  vecinos:{acto:1, tit:'Los que pasan por el camino', tipo:'eleccion',
+   txt:'Un grupo pequeño de viajeros —parece otra familia, tan perdida como la de ustedes— acampa a la vista, río abajo. Nadie sabe aún si el mundo fuera del jardín se comparte o se disputa. ¿Qué hace la familia?',
+   ops:[
+    {t:'🤝 Acercarse y ofrecer lo poco que hay', atr:'carisma', tag:'animar',
+     e:{txt:'{n} camina hacia ellos con las manos abiertas. Hay recelo al principio, pero el pan compartido desarma más que cualquier palabra: intercambian noticias, semillas y la promesa de ayudarse si hace falta.', next:'siembra', flag:'lazos_externos'},
+     p:{txt:'El encuentro es cordial pero breve; se separan con un gesto de cabeza y poco más. Al menos ya no están solos en el mapa.', next:'siembra', flag:'lazos_externos'},
+     f:{txt:'{n} se acerca, pero el otro grupo malinterpreta el gesto y se aleja deprisa, asustado. La oportunidad se pierde, aunque queda claro que no son los únicos por aquí.', next:'siembra'}},
+    {t:'👀 Observar de lejos, con cautela', atr:'ingenio', tag:'sigilo',
+     e:{txt:'{n} vigila desde la distancia sin ser visto: son gente sencilla, tan cautelosa como ellos. Se van al amanecer sin cruzar palabra, pero la familia aprende algo del terreno con solo mirar cómo lo usan.', next:'siembra'},
+     p:{txt:'{n} los observa un rato, pero la curiosidad casi los delata. Se retiran a tiempo, con más preguntas que respuestas.', next:'siembra'},
+     f:{txt:'Un crujido de rama los delata; los viajeros levantan el campamento de golpe y desaparecen antes del alba. Quedan solos otra vez.', next:'siembra', flag:'aislados'}},
+    {t:'🚶 Evitarlos y seguir de largo', atr:'fe',
+     e:{txt:'La familia decide que aún no es momento de mezclarse con extraños. Se alejan en silencio, confiando en que la providencia decidirá cuándo cruzar caminos con otros.', next:'siembra', flag:'aislados'},
+     p:{txt:'Evitan el encuentro, aunque la decisión pesa más de lo esperado: la idea de no estar solos, tan cerca y tan lejos, ronda varias noches.', next:'siembra', flag:'aislados'},
+     f:{txt:'Al retirarse, alguien tropieza y el ruido delata su presencia. Los viajeros huyen alarmados, y la familia se queda con la incómoda sensación de haber sembrado miedo en lugar de paz.', next:'siembra', flag:'aislados'}}]},
+
+  /* ================= ACTO 2 — LAS PRIMERAS ESTACIONES ================= */
+  siembra:{acto:2, tit:'Espinos y cardos', tipo:'tirada', atr:'fuerza', tag:'construir',
    txt:'"Con el sudor de tu rostro comerás pan." Llega el tiempo de arar por primera vez. {n} empuña la vara endurecida al fuego y enfrenta un suelo lleno de espinos.',
-   e:'Surco a surco, la tierra se abre. Al caer la tarde hay un campo sembrado, y las manos llenas de callos parecen casi un trofeo.',
-   p:'La mitad del campo queda sembrado; la otra mitad es una guerra contra las raíces. {n} termina agotado, pero mañana se continúa.',
-   f:'La vara se parte contra una raíz y los espinos cobran su precio en rasguños. Habrá que fabricar herramientas mejores y volver a empezar.'},
-  {acto:2, tit:'El rebaño', tipo:'tirada', atr:'fe', tag:'campo', pref:'pastor',
+   e:{txt:'Surco a surco, la tierra se abre. Al caer la tarde hay un campo sembrado, y las manos llenas de callos parecen casi un trofeo.', next:'rebano'},
+   p:{txt:'La mitad del campo queda sembrado; la otra mitad es una guerra contra las raíces. {n} termina agotado, pero mañana se continúa.', next:'rebano'},
+   f:{txt:'La vara se parte contra una raíz y los espinos cobran su precio en rasguños. Habrá que fabricar herramientas mejores y volver a empezar.', next:'rebano'}},
+
+  rebano:{acto:2, tit:'El rebaño', tipo:'tirada', atr:'fe', tag:'campo', pref:'pastor',
    txt:'Un grupo de cabras montesas baja a beber al arroyo. Si lograran ganarse su confianza, habría leche y lana. {n} se acerca despacio, con paciencia y calma.',
-   e:'Horas de quietud dan fruto: una cabra come de la mano de {n}, y donde va una, van las demás. La familia tiene su primer rebaño.',
-   p:'Dos cabras jóvenes se quedan; el resto huye monte arriba. Es poco, pero es un comienzo.',
-   f:'Un movimiento brusco y el grupo entero se desvanece entre las rocas. {n} vuelve con las manos vacías y una lección de paciencia.'},
-  {acto:2, tit:'Ojos en la oscuridad', tipo:'eleccion',
-   txt:'A medianoche, el rebaño se inquieta. Dos ojos brillan más allá de la fogata: un depredador ronda el campamento. ¿Qué hace la familia?',
+   e:{txt:'Horas de quietud dan fruto: una cabra come de la mano de {n}, y donde va una, van las demás. La familia tiene su primer rebaño.', next:'decision_noche'},
+   p:{txt:'Dos cabras jóvenes se quedan; el resto huye monte arriba. Es poco, pero es un comienzo.', next:'decision_noche'},
+   f:{txt:'Un movimiento brusco y el grupo entero se desvanece entre las rocas. {n} vuelve con las manos vacías y una lección de paciencia.', next:'rebano_perdido'}},
+
+  rebano_perdido:{acto:2, tit:'Tras el rastro', tipo:'tirada', atr:'agilidad', tag:'campo',
+   txt:'Sin leche ni lana no hay mucho margen: {n} tiene una última oportunidad de rastrear y recuperar al menos algunos animales antes de que oscurezca.',
+   e:{txt:'{n} sigue el rastro de pezuñas entre las peñas y da alcance a tres cabras rezagadas. No es el rebaño soñado, pero es un comienzo real.', next:'decision_noche'},
+   p:{txt:'{n} recupera una sola cabra, asustada y flaca. Habrá leche, poca, pero habrá.', next:'decision_noche'},
+   f:{txt:'Cae la noche sin rastro de ellas. La familia vuelve con las manos vacías: este año, la lana y la leche tendrán que esperar.', next:'decision_noche'}},
+
+  decision_noche:{acto:2, tit:'Ojos en la oscuridad', tipo:'eleccion',
+   txt:'A medianoche, el campamento se inquieta. Dos ojos brillan más allá de la fogata: un depredador ronda. ¿Qué hace la familia?',
    ops:[
     {t:'🔥 Ahuyentarlo con fuego', atr:'ingenio',
-     e:'{n} lanza ramas encendidas trazando un arco de chispas. La bestia retrocede ante ese sol pequeño y furioso, y no vuelve.',
-     p:'El fuego lo mantiene a raya toda la noche, pero nadie duerme. Al alba, la bestia se va… y el cansancio se queda.',
-     f:'Una rama encendida cae sobre la hierba seca. Apagan el conato a manotazos mientras la bestia se lleva la mejor cabra.'},
+     e:{txt:'{n} lanza ramas encendidas trazando un arco de chispas. La bestia retrocede ante ese sol pequeño y furioso, y no vuelve.', next:'enfermedad'},
+     p:{txt:'El fuego lo mantiene a raya toda la noche, pero nadie duerme. Al alba, la bestia se va… y el cansancio se queda.', next:'enfermedad'},
+     f:{txt:'Una rama encendida cae sobre la hierba seca. Apagan el conato a manotazos mientras la bestia se lleva lo que puede.', next:'enfermedad'}},
     {t:'🪨 Plantarle cara', atr:'fuerza',
-     e:'{n} se yergue entre la bestia y el rebaño, vara en mano, y su grito resuena en todo el valle. El depredador entiende el mensaje y desaparece.',
-     p:'La bestia se retira, pero no sin un zarpazo que rasga el manto de {n}. Un palmo más y habría sido la piel.',
-     f:'La bestia es más rápida: derriba a {n} de un empujón y hiere a una cabra antes de huir. La familia pasa la noche curando heridas.'},
+     e:{txt:'{n} se yergue entre la bestia y el campamento, vara en mano, y su grito resuena en todo el valle. El depredador entiende el mensaje y desaparece.', next:'enfermedad'},
+     p:{txt:'La bestia se retira, pero no sin un zarpazo que rasga el manto de {n}. Un palmo más y habría sido la piel.', next:'enfermedad'},
+     f:{txt:'La bestia es más rápida: derriba a {n} de un empujón antes de huir. La familia pasa la noche curando el susto y algún rasguño.', next:'enfermedad'}},
     {t:'🕯️ Velar por turnos y orar', atr:'fe',
-     e:'La familia se organiza en vigilias y {n} guía la oración junto al fuego. La serenidad se contagia; la bestia ronda, no encuentra descuido, y al alba ya no está.',
-     p:'Las vigilias funcionan, aunque el sueño interrumpido pasa factura. La bestia se marcha al tercer canto del gallo… si hubiera gallos aún.',
-     f:'{n} cabecea en la última guardia y la bestia arrastra un cabrito. El balido los despierta demasiado tarde.'}]},
-  {acto:3, tit:'La nube de langostas', tipo:'tirada', atr:'ingenio',
+     e:{txt:'La familia se organiza en vigilias y {n} guía la oración junto al fuego. La serenidad se contagia; la bestia ronda, no encuentra descuido, y al alba ya no está.', next:'enfermedad'},
+     p:{txt:'Las vigilias funcionan, aunque el sueño interrumpido pasa factura. La bestia se marcha al tercer canto del gallo… si hubiera gallos aún.', next:'enfermedad'},
+     f:{txt:'{n} cabecea en la última guardia y la bestia ronda más cerca de lo que a nadie le gustaría admitir. El amanecer los encuentra despiertos y con los nervios de punta.', next:'enfermedad'}}]},
+
+  enfermedad:{acto:2, tit:'Fiebre en la noche', tipo:'tirada', atr:'fe', pref:'cuidador',
+   txt:'Uno de los pequeños amanece ardiendo en fiebre, y no hay templo ni médico al que acudir: solo hierbas, agua fresca y turnos de vela. {n} se hace cargo del cuidado mientras el resto sigue con las tareas del día.',
+   e:{txt:'Entre paños húmedos, infusiones de hierbas amargas y una paciencia inagotable, {n} logra que la fiebre ceda al segundo día. El pequeño vuelve a correr por el campamento como si nada.', next:'sequia'},
+   p:{txt:'La fiebre tarda tres días largos en ceder. {n} no se separa del enfermo ni una noche, y al final gana, aunque el cansancio se le nota en la cara durante semanas.', next:'sequia'},
+   f:{txt:'Nada de lo que prueba {n} baja la fiebre del todo. El susto deja una marca: a partir de ahora, cualquier tos alarma a toda la familia.', next:'enfermedad_grave'}},
+
+  enfermedad_grave:{acto:2, tit:'Contra el tiempo', tipo:'tirada', atr:'ingenio', pref:'escriba',
+   txt:'La fiebre no cede y no hay tiempo que perder: {n} rebusca en la memoria y en cada rincón del valle algo, lo que sea, que ayude — una raíz distinta, una corteza, cualquier remedio que no hayan probado.',
+   e:{txt:'Una corteza amarga que {n} recuerda haber visto cerca del arroyo resulta ser justo lo que hacía falta. La fiebre cede esa misma noche, y el alivio de la familia entera se siente casi físico.', next:'sequia'},
+   p:{txt:'El remedio que encuentra {n} no cura del todo, pero calma lo suficiente para que el cuerpo gane la batalla por su cuenta, aunque a paso de tortuga.', next:'sequia'},
+   f:{txt:'Nada funciona del todo; solo el tiempo, la vigilia y la oración terminan ganando esa guerra, varios días después de lo que cualquiera hubiera querido.', next:'sequia'}},
+
+  sequia:{acto:2, tit:'Semanas sin lluvia', tipo:'tirada', atr:'fe',
+   txt:'El cielo se queda seco semana tras semana justo cuando el campo más lo necesita. {n} guía a la familia en la difícil tarea de repartir el agua que queda entre las personas, los animales y el sembrado.',
+   e:{txt:'{n} organiza turnos de riego tan ajustados que ni una gota se desperdicia. Cuando por fin llueve, el campo apenas lo nota: ya estaba salvado.', next:'cosecha'},
+   p:{txt:'El reparto cuidadoso de {n} salva lo esencial, aunque parte del sembrado se pierde. La lluvia, cuando llega, llega justo a tiempo para lo que queda.', next:'cosecha'},
+   f:{txt:'A pesar de todo, la sequía se lleva su parte antes de que vuelva la lluvia. {n} lo intenta todo, pero hay batallas que ni la mejor fe gana sola.', next:'cosecha'}},
+
+  /* ================= ACTO 3 — EL PRIMER AÑO CUMPLIDO ================= */
+  cosecha:{acto:3, tit:'La nube de langostas', tipo:'tirada', atr:'ingenio',
    txt:'El campo por fin verdea… y una nube baja de langostas aparece en el horizonte. {n} tiene poco tiempo para salvar la cosecha.',
-   e:'Humo verde de hierbas frescas, mantas sobre los brotes tiernos y toda la familia agitando ramas: la nube pasa de largo. La cosecha vive.',
-   p:'Salvan tres surcos de cada cuatro. Las langostas se llevan su parte, pero queda suficiente para el invierno… si se administra bien.',
-   f:'La nube desciende como una sola sombra. Cuando se levanta, la mitad del campo es rastrojo. El invierno será duro.'},
-  {acto:3, tit:'Repartir lo que hay', tipo:'eleccion',
+   e:{txt:'Humo verde de hierbas frescas, mantas sobre los brotes tiernos y toda la familia agitando ramas: la nube pasa de largo. La cosecha vive.', next:'reparto'},
+   p:{txt:'Salvan tres surcos de cada cuatro. Las langostas se llevan su parte, pero queda suficiente para el invierno… si se administra bien.', next:'reparto'},
+   f:{txt:'La nube desciende como una sola sombra, y no toda se va. Al día siguiente vuelve, más hambrienta.', next:'plaga_extendida'}},
+
+  plaga_extendida:{acto:3, tit:'La segunda oleada', tipo:'tirada', atr:'fuerza',
+   txt:'Es la última oportunidad de salvar lo que quede del campo antes de que no haya nada que salvar.',
+   e:{txt:'Con humo, ruido y los brazos ya curtidos de un año entero de trabajo, la familia logra espantarlas para bien esta vez. Queda menos de lo esperado, pero queda.', next:'reparto'},
+   p:{txt:'Salvan un rincón del campo, apenas. No alcanza para presumir, pero alcanza para no pasar hambre.', next:'reparto'},
+   f:{txt:'La segunda oleada termina lo que la primera empezó. El campo queda en rastrojo casi por completo, y el invierno que viene pesa sobre todos desde ya.', next:'reparto'}},
+
+  reparto:{acto:3, tit:'Repartir lo que hay', tipo:'eleccion',
    txt:'Con la despensa contada, la familia se reúne junto al fuego. Hay que decidir cómo repartir el alimento hasta la próxima siembra.',
    ops:[
     {t:'⚖️ Racionar todos por igual', atr:'fe',
-     e:'{n} propone porciones iguales y predica con el ejemplo sirviéndose al último. Nadie protesta; el hambre compartida une más que el pan.',
-     p:'El acuerdo se cumple… con algún gruñido de estómago y de carácter. Las semanas pasan lentas, pero pasan.',
-     f:'Las porciones iguales no calman los ánimos desiguales. Una discusión agria deja la cena fría y los corazones también.'},
+     e:{txt:'{n} propone porciones iguales y predica con el ejemplo sirviéndose al último. Nadie protesta; el hambre compartida une más que el pan.', next:'visita'},
+     p:{txt:'El acuerdo se cumple… con algún gruñido de estómago y de carácter. Las semanas pasan lentas, pero pasan.', next:'visita'},
+     f:{txt:'Las porciones iguales no calman los ánimos desiguales. Una discusión agria deja la cena fría y los corazones también.', next:'visita'}},
     {t:'🤲 Dar más a los más débiles', atr:'carisma', tag:'animar',
-     e:'{n} habla con tanta ternura de los pequeños y los cansados que nadie discute ceder su parte. Esa noche, el guiso sabe a algo parecido al jardín.',
-     p:'Los fuertes aceptan comer menos, aunque a alguno se le nota el sacrificio en la cara. El amor cuesta, y se paga.',
-     f:'"¿Y quién decide quién es débil?" La pregunta enciende una discusión que ni {n} logra apagar del todo. Se reparte, pero en silencio.'}]},
-  {acto:3, tit:'El altar de piedra', tipo:'tirada', atr:'fe', pref:'lider',
-   txt:'Ha pasado un año. Sobre la loma, la familia apila piedras sin labrar para un altar. {n} presenta lo mejor de la primera cosecha como ofrenda.',
-   e:'El humo sube recto hacia el cielo del atardecer. Nadie habla; no hace falta. Fuera del jardín también se puede caminar con Dios.',
-   p:'Las palabras de {n} tropiezan con el nudo en la garganta: gratitud y nostalgia mezcladas. La ofrenda sube; las lágrimas también.',
-   f:'El viento apaga dos veces el fuego y el desánimo amenaza con apagar el resto. A la tercera, la llama prende… como la esperanza: costosa, pero encendida.'}],
- epilogo:'El primer año fuera del Edén ha terminado. Hay un campo sembrado, un refugio firme, un rebaño pequeño y un altar sobre la loma.\n\n{lista}\n\nLa puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes. La senda continúa.'},
+     e:{txt:'{n} habla con tanta ternura de los pequeños y los cansados que nadie discute ceder su parte. Esa noche, el guiso sabe a algo parecido al jardín.', next:'visita'},
+     p:{txt:'Los fuertes aceptan comer menos, aunque a alguno se le nota el sacrificio en la cara. El amor cuesta, y se paga.', next:'visita'},
+     f:{txt:'"¿Y quién decide quién es débil?" La pregunta enciende una discusión que ni {n} logra apagar del todo. Se reparte, pero en silencio.', next:'visita'}}]},
 
-/* ---------- 2. EL ARCA ---------- */
+  visita:{acto:3, tit:'Quien llama a la puerta', tipo:'eleccion',
+   txt:'Con las provisiones ya contadas, alguien llama pidiendo hospitalidad para pasar la noche: un pariente lejano, o quizás uno de aquellos viajeros de principios de año. Compartir ahora significa tener menos para después.',
+   ops:[
+    {t:'🍞 Recibirlo y compartir la mesa', atr:'carisma', tag:'animar',
+     e:{txt:'{n} lo recibe como si fuera de la familia. La mesa rinde más de lo que debería, y lo que se comparte esa noche vuelve, de un modo u otro, antes de que acabe el invierno.', next:'reflexion', flag:'lazos_externos'},
+     p:{txt:'{n} comparte lo que hay, aunque las raciones de mañana quedan más flacas. Nadie se arrepiente, aunque a alguno le cueste no pensarlo dos veces.', next:'reflexion', flag:'lazos_externos'},
+     f:{txt:'La hospitalidad de {n} choca con las quejas de quienes cuentan cada grano. La cena termina en silencio incómodo, aunque el visitante duerme bajo techo.', next:'reflexion'}},
+    {t:'🚪 Ofrecer un techo, pero no la mesa', atr:'ingenio',
+     e:{txt:'{n} encuentra el equilibrio justo: un rincón seco para dormir, sin tocar las provisiones contadas. El visitante lo entiende y agradece igual; nadie sale perdiendo.', next:'reflexion'},
+     p:{txt:'El arreglo de {n} funciona, aunque incómodo: todos notan al huésped comer de su propio hato mientras ellos racionan el suyo.', next:'reflexion'},
+     f:{txt:'El visitante malinterpreta la mano tendida a medias y se marcha antes del amanecer, ofendido. {n} se queda con la duda de si hizo lo correcto.', next:'reflexion', flag:'aislados'}}]},
+
+  reflexion:{acto:3, tit:'Bajo las estrellas', tipo:'tirada', atr:'fe',
+   txt:'La noche antes del altar, alguien tiene que poner en palabras lo que este primer año ha sido: lo bueno, lo duro, lo que ya no está. {n} guía a la familia en ese primer intento de contar su propia historia.',
+   e:{txt:'Las palabras de {n} encuentran el tono justo entre el duelo y la gratitud. Por primera vez desde la puerta del jardín, la noche se siente más como un comienzo que como una pérdida.', next:'altar'},
+   p:{txt:'{n} lo intenta, aunque las palabras se le atragantan más de una vez. Nadie espera un discurso perfecto; alcanza con que sea sincero.', next:'altar'},
+   f:{txt:'{n} no encuentra las palabras esa noche, y el silencio se estira incómodo alrededor del fuego. A veces contar la historia también toma su tiempo.', next:'altar'}},
+
+  altar:{acto:3, tit:'El altar de piedra', tipo:'tirada', atr:'fe', pref:'lider',
+   txt:'Ha pasado un año. Sobre la loma, la familia apila piedras sin labrar para un altar. {n} presenta lo mejor de la primera cosecha como ofrenda.',
+   e:{txt:'', next:'fin_pleno'},
+   p:{txt:'', next:'fin_sencillo'},
+   f:{txt:'', next:'fin_costoso'}},
+
+  /* ================= FINALES ================= */
+  fin_pleno:{tipo:'fin',
+   txt:'El humo del altar sube recto hacia el cielo del atardecer. Ha sido un año de manos llenas de callos, y hoy un rebaño, un campo y un refugio firme sostienen a la familia entera. Nadie habla; no hace falta — fuera del jardín también se puede caminar con Dios.\n\n{lista}\n\n{extra}La puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes. La senda continúa.'},
+  fin_sencillo:{tipo:'fin',
+   txt:'El fuego del altar tarda en prender, como ha tardado casi todo este año. Lo que suben esta noche no son grandes riquezas, sino lo que de verdad cuesta: tiempo, sudor, alguna lágrima y la terquedad de seguir intentándolo. Es suficiente. Es más que suficiente.\n\n{lista}\n\n{extra}La puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes, paso a paso. La senda continúa.'},
+  fin_costoso:{tipo:'fin',
+   txt:'El altar de piedra se levanta sobre una loma que ha visto de todo este año: hambre, fiebre, sequía, noches sin dormir. El humo sube torcido por el viento, como torcido y difícil ha sido casi cada paso. Y aun así sube. Sobrevivir, este primer año, ya era la ofrenda.\n\n{lista}\n\n{extra}La puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes, incluso —sobre todo— en lo cuesta arriba. La senda continúa.'}
+ }},
 {id:'arca', ico:'⛵', color:'#6b93b5', nom:'El Arca', cita:'Génesis 6 – 8',
  desc:'La familia de Noé construye el arca mientras el mundo se burla.',
  nomM:['Sem','Cam','Jafet','Noé'], nomF:['Ema','Noela','Raquel','Sedeqa'],
@@ -1402,6 +1510,49 @@ function esperarElecciones(){
   const todos=ESTADO.jugadores.filter(j=>j.conectado);
   if(todos.length>=3 && todos.every(j=>j.arqId)) arrancarNarracion();
 }
+/* Activa un nodo/escena para que alguien actúe: descanso de acto si toca,
+   auxilio si está abatido, publica el texto y arma la tirada o la elección.
+   Compartido por el modo lineal (los 4 escenarios de siempre) y el modo
+   grafo (escenas con ramas reales, ver ESCENARIOS[].grafo). */
+function activarNodo(nodo){
+  if(nodo.acto!==ESTADO.actoActual) anfDescanso(nodo.acto);
+  const j=quienActua(nodo);
+  if(!j){ ESTADO.ui={modo:'espera',data:null}; anfDifundir(); return; }
+  if(j.animo<=0){
+    const ayudante=ESTADO.jugadores.find(x=>x!==j&&x.animo>0&&x.conectado)||j;
+    j.animo=1;
+    logPush('sistema','🤝 Auxilio', `${j.nombre} estaba abatido; ${ayudante===j?'un momento de descanso':ayudante.nombre} lo reanima (+1 ❤️)`);
+  }
+  logPush('narrador','📜 Narrador', nodo.txt.replaceAll('{n}',j.nombre), nodo.tit);
+  ESTADO.turnoActual=j.id; ESTADO.turnoNombre=j.nombre;
+  if(nodo.tipo==='eleccion'){
+    ESTADO.ui={modo:'eleccion', jugId:j.id, jugNombre:j.nombre,
+      pide:nodo.txt.replaceAll('{n}',j.nombre),
+      ops:nodo.ops.map(o=>({t:o.t}))};
+    ESTADO._escenaPend=nodo;
+  }else{
+    prepararTiradaAnf(nodo, j, nodo);
+  }
+  anfDifundir();
+}
+/* Cierra la aventura con un texto ya resuelto (usado por el modo grafo: cada
+   final es en sí mismo un nodo, así que puede haber varios finales distintos
+   según el camino recorrido, no solo uno fijo). */
+function anfFinalizarConTexto(txtBase){
+  const lista=ESTADO.jugadores.map(j=>{
+    const a=ARQUETIPOS.find(x=>x.id===j.arqId);
+    return `${a.ico} ${j.nombre}, ${j.genero==='m'?a.m.toLowerCase():a.f.toLowerCase()}, ${EPI_ARQ[j.arqId]}.`;
+  }).join('\n');
+  let extra='';
+  const e=esc();
+  if(e.extras){
+    for(const flag of (ESTADO.flags||[])){ if(e.extras[flag]){ extra=e.extras[flag]; break; } }
+  }
+  const epi=txtBase.replace('{lista}',lista).replace('{extra}',extra);
+  ESTADO.fase='fin'; ESTADO.epilogo=epi; ESTADO.finTitulo=e.nom;
+  borrarPartidaGuardada();
+  anfDifundir();
+}
 function arrancarNarracion(){
   ESTADO._esperando=false;
   ESTADO.fase='jugando';
@@ -1409,9 +1560,26 @@ function arrancarNarracion(){
   ESTADO.banner={ico:e.ico, nom:e.nom.toUpperCase()};
   ESTADO.log=[];
   ESTADO.escIdx=-1; ESTADO.turnoIdx=0; ESTADO.actoActual=0;
+  ESTADO.nodoId=null; ESTADO.flags=[]; ESTADO.destino = e.grafo ? e.inicio : null;
   logPush('narrador','📜 Narrador', e.intro);
   if(e.ruta){ ESTADO.ui={modo:'ruta', data:null}; anfDifundir(); }
   else { anfDifundir(); anfAvanzar(); }
+}
+function anfAvanzar(){
+  const e=esc();
+  if(e.grafo){
+    const destId=ESTADO.destino;
+    const nodo=destId ? e.nodos[destId] : null;
+    if(!nodo){ anfFinalizarConTexto(e.epilogo); return; }   // red de seguridad: id inválido
+    if(nodo.tipo==='fin'){ anfFinalizarConTexto(nodo.txt); return; }
+    ESTADO.nodoId=destId;
+    activarNodo(nodo);
+    return;
+  }
+  const escenas=escenasActuales();
+  ESTADO.escIdx++;
+  if(ESTADO.escIdx>=escenas.length){ anfFinalizar(); return; }
+  activarNodo(escenas[ESTADO.escIdx]);
 }
 function anfElegirRuta(clave){
   ESTADO.rutaElegida=clave;
@@ -1432,32 +1600,6 @@ function quienActua(escena){
     j=pool[ESTADO.turnoIdx%pool.length]; ESTADO.turnoIdx++;
   }
   return j;
-}
-function anfAvanzar(){
-  const escenas=escenasActuales();
-  ESTADO.escIdx++;
-  if(ESTADO.escIdx>=escenas.length){ anfFinalizar(); return; }
-  const escena=escenas[ESTADO.escIdx];
-  if(escena.acto!==ESTADO.actoActual) anfDescanso(escena.acto);
-  const j=quienActua(escena);
-  if(!j){ ESTADO.ui={modo:'espera',data:null}; anfDifundir(); return; }
-  if(j.animo<=0){
-    const ayudante=ESTADO.jugadores.find(x=>x!==j&&x.animo>0&&x.conectado)||j;
-    j.animo=1;
-    logPush('sistema','🤝 Auxilio', `${j.nombre} estaba abatido; ${ayudante===j?'un momento de descanso':ayudante.nombre} lo reanima (+1 ❤️)`);
-  }
-  const txt=`${escena.tit.toUpperCase()}\n${escena.txt.replaceAll('{n}',j.nombre)}`;
-  logPush('narrador','📜 Narrador', escena.txt.replaceAll('{n}',j.nombre), escena.tit);
-  ESTADO.turnoActual=j.id; ESTADO.turnoNombre=j.nombre;
-  if(escena.tipo==='eleccion'){
-    ESTADO.ui={modo:'eleccion', jugId:j.id, jugNombre:j.nombre,
-      pide:escena.txt.replaceAll('{n}',j.nombre),
-      ops:escena.ops.map(o=>({t:o.t}))};
-    ESTADO._escenaPend=escena;
-  }else{
-    prepararTiradaAnf(escena, j, escena);
-  }
-  anfDifundir();
 }
 function anfDescanso(acto){
   ESTADO.actoActual=acto;
@@ -1558,8 +1700,17 @@ function anfTirarNarrador(dadoNarr, dadoNarrMascota){
   else { clasif='COMPLICACIÓN'; cls='fallo'; gano='fallo'; }
   D.clasif=clasif; D.cls=cls; D.gano=gano;
   // Texto sugerido del guion según el resultado del duelo
-  let sugerido;
-  if(gano==='exito') sugerido=T.e; else if(gano==='parcial') sugerido=T.p; else sugerido=T.f;
+  // El campo e/p/f es texto plano en los 4 escenarios de siempre, y un objeto
+  // {txt, next, flag} en los escenarios con grafo (más ramas reales).
+  let campo;
+  if(gano==='exito') campo=T.e; else if(gano==='parcial') campo=T.p; else campo=T.f;
+  const esObjeto = campo && typeof campo==='object';
+  let sugerido = esObjeto ? campo.txt : campo;
+  if(esObjeto && campo.next!==undefined) D.siguienteNodo=campo.next;
+  if(esObjeto && campo.flag){
+    if(!ESTADO.flags) ESTADO.flags=[];
+    if(!ESTADO.flags.includes(campo.flag)) ESTADO.flags.push(campo.flag);
+  }
   D.sugerido = (sugerido||'').replaceAll('{n}', ESTADO.turnoNombre);
   ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
     estado:'dueloResuelto',
@@ -1603,6 +1754,7 @@ function anfAceptarTirada(textoFinal){    // llamado por el anfitrión-narrador
   logPush('narrador','📜 Narrador', texto);
   if(D.gano==='fallo'){ j.animo=Math.max(0,j.animo-1);
     logPush('sistema','⚖️ Ánimo', `${j.nombre} pierde 1 ❤️${j.animo===0?' y queda abatido 😵':''}`); }
+  if(D.siguienteNodo!==undefined) ESTADO.destino=D.siguienteNodo;   // modo grafo: a dónde ir al continuar
   ESTADO._tirada=null; ESTADO._ultTirada=null; ESTADO._duelo=null;
   ESTADO.ui={modo:'continuar', data:null};
   anfDifundir();

@@ -180,6 +180,15 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
   <h2 class="titulo" style="font-size:1.5rem">Sala abierta</h2>
   <p class="sub">Compartan este código. Cuando todos estén dentro, comienza la partida.</p>
   <div class="codigo" id="codigoSala">····</div>
+  <div class="panel" style="text-align:center">
+    <label style="display:block;margin-bottom:10px">O que escaneen este código</label>
+    <canvas id="qrSala" style="display:none;border-radius:8px;border:1px solid var(--linea)"></canvas>
+    <div id="qrEnlace" style="font-size:.72rem;color:var(--arena);word-break:break-all;margin-top:8px"></div>
+    <button class="btn secundario" id="btnCopiar" style="margin-top:10px" onclick="copiarEnlace()">Copiar enlace</button>
+    <div style="font-size:.78rem;color:var(--arena);font-style:italic;margin-top:8px">
+      Con la cámara del teléfono. Entran directo, sin escribir la dirección ni el código.
+    </div>
+  </div>
   <div class="estado-red ok" id="estSala">Esperando jugadores…</div>
   <div class="panel">
     <label>En la compañía (<span id="numConectados">0</span>)</label>
@@ -278,7 +287,7 @@ const CARPETA_IMG = 'Imagenes';
 /* Versión del archivo. Súbela cada vez que publiques cambios: si un dispositivo
    quedó con una copia vieja en caché, el juego lo detecta y avisa en vez de
    fallar con números raros. */
-const VERSION = '12d-mascota-3';
+const VERSION = '12d-qr-1';
 const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carisma:'Carisma', fe:'Fe'};
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
@@ -777,6 +786,290 @@ function modTotal(j, atr, tag){
   return {mod:base+b, notas};
 }
 
+/* ====================== GENERADOR DE CÓDIGO QR (sin librerías) ======================
+   Modo byte, corrección de errores L o M, versión automática 1–20.
+   Devuelve una matriz de booleanos (true = módulo oscuro).
+   Escrito para este juego: no depende de internet ni de ningún CDN. */
+const QR_ECC_POR_BLOQUE = {
+  L:[7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28],
+  M:[10,16,26,18,24,16,18,22,22,26,30,22,22,24,24,28,28,26,26,26],
+  Q:[13,22,18,26,18,24,18,22,20,24,28,26,24,20,30,24,28,28,26,30]
+};
+const QR_BLOQUES = {
+  L:[1,1,1,1,1,2,2,2,2,4,4,4,4,4,6,6,6,6,7,8],
+  M:[1,1,1,2,2,4,4,4,5,5,5,8,9,9,10,10,11,13,14,16],
+  Q:[1,1,2,2,4,4,6,6,8,8,8,10,12,16,12,17,16,18,21,20]
+};
+
+function qrModulosCrudos(ver){
+  let r=(16*ver+128)*ver+64;
+  if(ver>=2){
+    const na=Math.floor(ver/7)+2;
+    r-=(25*na-10)*na-55;
+    if(ver>=7) r-=36;
+  }
+  return r;
+}
+function qrCodewordsTotal(ver){ return Math.floor(qrModulosCrudos(ver)/8); }
+function qrCodewordsDatos(ver, ecl){
+  return qrCodewordsTotal(ver) - QR_ECC_POR_BLOQUE[ecl][ver-1]*QR_BLOQUES[ecl][ver-1];
+}
+
+/* ---- aritmética en GF(256), polinomio 0x11D ---- */
+function qrMul(a,b){
+  let z=0;
+  for(let i=7;i>=0;i--){
+    z=((z<<1)^((z>>>7)*0x11D))&0xFF;
+    z^=((b>>>i)&1)*a;
+  }
+  return z;
+}
+function qrDivisorRS(grado){
+  const r=new Uint8Array(grado); r[grado-1]=1;
+  let raiz=1;
+  for(let i=0;i<grado;i++){
+    for(let j=0;j<grado;j++){
+      r[j]=qrMul(r[j],raiz);
+      if(j+1<grado) r[j]^=r[j+1];
+    }
+    raiz=qrMul(raiz,0x02);
+  }
+  return r;
+}
+function qrRestoRS(datos, divisor){
+  const r=new Uint8Array(divisor.length);
+  for(const b of datos){
+    const factor=b^r[0];
+    r.copyWithin(0,1); r[r.length-1]=0;
+    for(let i=0;i<divisor.length;i++) r[i]^=qrMul(divisor[i],factor);
+  }
+  return r;
+}
+
+/* ---- codificación de los datos ---- */
+function qrBytesUTF8(txt){
+  const out=[];
+  for(const ch of unescape(encodeURIComponent(txt))) out.push(ch.charCodeAt(0));
+  return out;
+}
+function qrBits(bytes, ver, ecl){
+  const bits=[];
+  const push=(val,len)=>{ for(let i=len-1;i>=0;i--) bits.push((val>>>i)&1); };
+  push(4,4);                                   // modo byte
+  push(bytes.length, ver<10?8:16);             // cuántos bytes
+  for(const b of bytes) push(b,8);
+  const capacidad=qrCodewordsDatos(ver,ecl)*8;
+  push(0, Math.min(4, capacidad-bits.length)); // terminador
+  while(bits.length%8!==0) bits.push(0);
+  const relleno=[0xEC,0x11];
+  for(let i=0; bits.length<capacidad; i++) push(relleno[i%2],8);
+  const cw=new Uint8Array(bits.length/8);
+  bits.forEach((b,i)=>{ if(b) cw[i>>>3]|=0x80>>>(i&7); });
+  return cw;
+}
+function qrEntrelazar(datos, ver, ecl){
+  const nb=QR_BLOQUES[ecl][ver-1], ecLen=QR_ECC_POR_BLOQUE[ecl][ver-1];
+  const total=qrCodewordsTotal(ver), cortos=Math.floor(total/nb)-ecLen;
+  const numCortos=nb-total%nb;
+  const divisor=qrDivisorRS(ecLen);
+  const bloques=[]; let k=0;
+  for(let i=0;i<nb;i++){
+    const largo=cortos+(i<numCortos?0:1);
+    const dat=datos.slice(k,k+largo); k+=largo;
+    bloques.push({dat, ecc:qrRestoRS(dat,divisor)});
+  }
+  const salida=[];
+  for(let i=0;i<cortos+1;i++)
+    for(let j=0;j<nb;j++)
+      if(i<bloques[j].dat.length) salida.push(bloques[j].dat[i]);
+  for(let i=0;i<ecLen;i++)
+    for(let j=0;j<nb;j++) salida.push(bloques[j].ecc[i]);
+  return salida;
+}
+
+/* ---- construcción de la matriz ---- */
+function qrPosAlineacion(ver){
+  if(ver===1) return [];
+  const n=Math.floor(ver/7)+2, paso=Math.ceil((ver*4+4)/(n*2-2))*2;
+  const pos=[6];
+  for(let p=ver*4+10; pos.length<n; p-=paso) pos.push(p);
+  pos.sort((a,b)=>a-b);            // deben quedar en orden ascendente:
+  return pos;                       // si no, el patrón de alineación pisa el de búsqueda
+}
+function qrMatriz(texto, ecl){
+  ecl=ecl||'M';
+  const bytes=qrBytesUTF8(texto);
+  let ver=0;
+  for(let v=1;v<=20;v++){
+    const cap=qrCodewordsDatos(v,ecl)-(v<10?2:3);   // menos cabecera
+    if(bytes.length<=cap){ ver=v; break; }
+  }
+  if(!ver) throw new Error('El texto es demasiado largo para un QR de versión 20.');
+
+  const n=ver*4+17;
+  const m=[], usado=[];
+  for(let i=0;i<n;i++){ m.push(new Array(n).fill(false)); usado.push(new Array(n).fill(false)); }
+  const set=(x,y,v)=>{ m[y][x]=v; usado[y][x]=true; };
+
+  // patrones de búsqueda y separadores
+  const finder=(cx,cy)=>{
+    for(let dy=-4;dy<=4;dy++) for(let dx=-4;dx<=4;dx++){
+      const x=cx+dx, y=cy+dy, d=Math.max(Math.abs(dx),Math.abs(dy));
+      if(x>=0&&x<n&&y>=0&&y<n) set(x,y,d!==2&&d!==4);
+    }
+  };
+  finder(3,3); finder(n-4,3); finder(3,n-4);
+
+  // patrones de alineación
+  const al=qrPosAlineacion(ver);
+  for(let i=0;i<al.length;i++) for(let j=0;j<al.length;j++){
+    if((i===0&&j===0)||(i===0&&j===al.length-1)||(i===al.length-1&&j===0)) continue;
+    for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++)
+      set(al[i]+dx, al[j]+dy, Math.max(Math.abs(dx),Math.abs(dy))!==1);
+  }
+
+  // patrones de temporización
+  for(let i=8;i<n-8;i++){ set(i,6,i%2===0); set(6,i,i%2===0); }
+  set(8,n-8,true);  // módulo oscuro
+
+  // reservar zonas de información de formato y versión
+  for(let i=0;i<9;i++){ if(!usado[i][8])usado[i][8]=true; if(!usado[8][i])usado[8][i]=true; }
+  for(let i=0;i<8;i++){ usado[n-1-i][8]=true; usado[8][n-1-i]=true; }
+  if(ver>=7) for(let i=0;i<6;i++) for(let j=0;j<3;j++){ usado[n-11+j][i]=true; usado[i][n-11+j]=true; }
+
+  // datos en zigzag desde la esquina inferior derecha
+  const cw=qrEntrelazar(qrBits(bytes,ver,ecl), ver, ecl);
+  let bit=0;
+  for(let der=n-1; der>=1; der-=2){
+    if(der===6) der=5;
+    for(let v=0;v<n;v++){
+      for(let c=0;c<2;c++){
+        const x=der-c, arriba=((der+1)&2)===0;
+        const y=arriba? n-1-v : v;
+        if(usado[y][x]) continue;
+        m[y][x] = bit<cw.length*8 ? ((cw[bit>>>3]>>>(7-(bit&7)))&1)!==0 : false;
+        bit++;
+      }
+    }
+  }
+
+  // máscara: se prueban las 8 y se elige la de menor penalización
+  const formula=[
+    (x,y)=>(x+y)%2===0, (x,y)=>y%2===0, (x,y)=>x%3===0, (x,y)=>(x+y)%3===0,
+    (x,y)=>(Math.floor(y/2)+Math.floor(x/3))%2===0, (x,y)=>(x*y)%2+(x*y)%3===0,
+    (x,y)=>((x*y)%2+(x*y)%3)%2===0, (x,y)=>((x+y)%2+(x*y)%3)%2===0
+  ];
+  const aplicar=(k,mat)=>{
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++)
+      if(!usado[y][x] && formula[k](x,y)) mat[y][x]=!mat[y][x];
+  };
+  const formato=(k)=>{
+    const ecBits={M:0, L:1, H:2, Q:3}[ecl];
+    let d=ecBits<<3|k, r=d;
+    for(let i=0;i<10;i++) r=(r<<1)^((r>>>9)*0x537);
+    const bitsF=((d<<10)|r)^0x5412;
+    for(let i=0;i<=5;i++) m[i][8]=((bitsF>>>i)&1)!==0;
+    m[7][8]=((bitsF>>>6)&1)!==0; m[8][8]=((bitsF>>>7)&1)!==0; m[8][7]=((bitsF>>>8)&1)!==0;
+    for(let i=9;i<15;i++) m[8][14-i]=((bitsF>>>i)&1)!==0;
+    for(let i=0;i<8;i++) m[8][n-1-i]=((bitsF>>>i)&1)!==0;
+    for(let i=8;i<15;i++) m[n-15+i][8]=((bitsF>>>i)&1)!==0;
+  };
+  if(ver>=7){
+    let r=ver;
+    for(let i=0;i<12;i++) r=(r<<1)^((r>>>11)*0x1F25);
+    const bitsV=(ver<<12)|r;
+    for(let i=0;i<18;i++){
+      const b=((bitsV>>>i)&1)!==0, a=n-11+i%3, bb=Math.floor(i/3);
+      m[a][bb]=b; m[bb][a]=b;
+    }
+  }
+
+  const penal=(mat)=>{
+    let p=0;
+    for(let y=0;y<n;y++){
+      let run=1;
+      for(let x=1;x<n;x++){
+        if(mat[y][x]===mat[y][x-1]){ run++; if(run===5)p+=3; else if(run>5)p++; }
+        else run=1;
+      }
+    }
+    for(let x=0;x<n;x++){
+      let run=1;
+      for(let y=1;y<n;y++){
+        if(mat[y][x]===mat[y-1][x]){ run++; if(run===5)p+=3; else if(run>5)p++; }
+        else run=1;
+      }
+    }
+    for(let y=0;y<n-1;y++) for(let x=0;x<n-1;x++)
+      if(mat[y][x]===mat[y][x+1]&&mat[y][x]===mat[y+1][x]&&mat[y][x]===mat[y+1][x+1]) p+=3;
+    const patron=[true,false,true,true,true,false,true];
+    const coincide=(get)=>{
+      let c=0;
+      for(let i=0;i<n;i++){
+        let ok=true;
+        for(let j=0;j<7;j++) if(i+j>=n||get(i+j)!==patron[j]){ ok=false; break; }
+        if(!ok) continue;
+        const antes=(i-4<0)||[...Array(4)].every((_,j)=>get(i-1-j)===false);
+        const desp=(i+7+4>n)||[...Array(4)].every((_,j)=>get(i+7+j)===false);
+        if(antes||desp) c++;
+      }
+      return c;
+    };
+    for(let y=0;y<n;y++) p+=40*coincide(i=>mat[y][i]);
+    for(let x=0;x<n;x++) p+=40*coincide(i=>mat[i][x]);
+    let osc=0;
+    for(let y=0;y<n;y++) for(let x=0;x<n;x++) if(mat[y][x]) osc++;
+    p+=10*Math.floor(Math.abs(osc*20-n*n*10)/(n*n));
+    return p;
+  };
+
+  let mejor=-1, mejorP=Infinity;
+  for(let k=0;k<8;k++){
+    aplicar(k,m); formato(k);
+    const p=penal(m);
+    if(p<mejorP){ mejorP=p; mejor=k; }
+    aplicar(k,m);
+  }
+  aplicar(mejor,m); formato(mejor);
+  return {matriz:m, tam:n, version:ver, mascara:mejor};
+}
+
+/* ---- Dibujo del QR y enlace de invitación ---- */
+function urlInvitacion(codigo){
+  return location.origin + location.pathname + '?sala=' + codigo + '&v=' + VERSION;
+}
+function pintarQR(codigo){
+  const cv=document.getElementById('qrSala'); if(!cv) return;
+  let r;
+  try{ r=qrMatriz(urlInvitacion(codigo),'M'); }
+  catch(e){ cv.style.display='none'; return; }
+  const borde=6;                       // zona de silencio: 6 módulos (menos falla al escanear)
+  const total=r.tam+borde*2;
+  const px=Math.max(4, Math.floor(240/total));   // píxeles por módulo
+  const lado=total*px;
+  const dpr=window.devicePixelRatio||1;
+  cv.width=lado*dpr; cv.height=lado*dpr;
+  cv.style.width=lado+'px'; cv.style.height=lado+'px';
+  const c=cv.getContext('2d');
+  c.setTransform(dpr,0,0,dpr,0,0);
+  c.fillStyle='#f6edd8'; c.fillRect(0,0,lado,lado);
+  c.fillStyle='#2f2317';
+  for(let y=0;y<r.tam;y++) for(let x=0;x<r.tam;x++)
+    if(r.matriz[y][x]) c.fillRect((x+borde)*px,(y+borde)*px,px,px);
+  cv.style.display='block';
+  const en=document.getElementById('qrEnlace');
+  if(en) en.textContent=urlInvitacion(codigo);
+}
+function copiarEnlace(){
+  const cod=ESTADO.codigo; if(!cod) return;
+  const t=urlInvitacion(cod);
+  const avisar=()=>{ const b=document.getElementById('btnCopiar'); if(!b) return;
+    const antes=b.textContent; b.textContent='✓ Copiado'; setTimeout(()=>b.textContent=antes,1800); };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(avisar).catch(()=>prompt('Copia este enlace:',t));
+  }else prompt('Copia este enlace:',t);
+}
+
 /* ==================== RENDER COMPARTIDO ==================== */
 function addMsg(clase,quien,texto){
   const log=document.getElementById('log');
@@ -935,6 +1228,7 @@ function crearSala(guardada){
   peer=new Peer(PREFIJO+codigo, {debug:1});
   peer.on('open', ()=>{
     document.getElementById('codigoSala').textContent=codigo;
+    pintarQR(codigo);   // el QR se dibuja en cuanto la sala existe de verdad
     if(guardada){
       // Reanudar: restaurar el estado, marcar a todos como desconectados hasta que vuelvan
       Object.assign(ESTADO, guardada.estado);
@@ -1931,6 +2225,21 @@ function render(){
 document.addEventListener('DOMContentLoaded',()=>{
   const inp=document.getElementById('inpCodigo');
   if(inp) inp.addEventListener('input',()=>{ inp.value=inp.value.toUpperCase(); });
+
+  // Llegó por QR o por enlace compartido: ?sala=ABCD → código ya puesto,
+  // solo falta el nombre. Así se salta escribir la dirección y el código.
+  const sala=(new URLSearchParams(location.search).get('sala')||'').trim().toUpperCase();
+  if(sala.length===4 && inp){
+    inp.value=sala;
+    const est=document.getElementById('estUnirse');
+    if(est){ est.className='estado-red ok'; est.textContent='Sala '+sala+' lista. Escribe tu nombre y toca Unirme.'; }
+    const nom=document.getElementById('inpNombreJug');
+    if(nom){
+      nom.scrollIntoView({behavior:'smooth', block:'center'});
+      setTimeout(()=>nom.focus(), 400);
+      nom.addEventListener('keydown', e=>{ if(e.key==='Enter') unirseSala(); });
+    }
+  }
 
   // Si hay una partida guardada, ofrecer continuarla
   const g=hayPartidaGuardada();

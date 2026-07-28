@@ -140,6 +140,7 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
   <p class="eyebrow">Juego de rol bíblico · en línea</p>
   <h1 class="titulo">AVENTURAS <span>bíblicas</span></h1>
   <p class="sub">Cada quien juega desde su teléfono. El anfitrión ve el tablero de todos.</p>
+  <p style="text-align:center;font-size:.68rem;color:var(--arena);opacity:.6;margin-top:-6px" id="etiquetaVersion"></p>
   <div class="divisor"></div>
   <div class="panel" style="text-align:center">
     <h3 style="font-size:1rem;letter-spacing:.15em;color:var(--arena)">SOY EL ANFITRIÓN</h3>
@@ -287,7 +288,7 @@ const CARPETA_IMG = 'Imagenes';
 /* Versión del archivo. Súbela cada vez que publiques cambios: si un dispositivo
    quedó con una copia vieja en caché, el juego lo detecta y avisa en vez de
    fallar con números raros. */
-const VERSION = '12d-qr-1';
+const VERSION = '12d-qr-2';
 const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carisma:'Carisma', fe:'Fe'};
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
@@ -1656,26 +1657,43 @@ function unirseSala(){
     est.textContent = e.type==='peer-unavailable' ? 'No existe una sala con ese código.' : 'Error de conexión: '+e.type;
   });
 }
-/* Aviso fijo cuando el narrador y este dispositivo tienen versiones distintas del
-   archivo. Es la causa típica de dados en blanco, "undefined" o "NaN": uno de los
-   dos navegadores se quedó con una copia vieja en caché. */
-function avisoVersion(verAnf){
+/* Aviso fijo cuando este dispositivo tiene una versión distinta a la esperada.
+   Es la causa típica de dados en blanco, "undefined" o "NaN", o de ver mecánicas
+   viejas (por ejemplo el sistema anterior de 2 dados de 6 caras): el navegador
+   se quedó con una copia vieja del archivo en caché. */
+function avisoVersion(mensaje){
   if(document.getElementById('avisoVer')) return;
   const d=document.createElement('div');
   d.id='avisoVer';
   d.style.cssText='position:fixed;left:0;right:0;top:0;z-index:99;background:var(--rojo);'+
     'color:#fff;font-family:var(--body);font-size:.9rem;line-height:1.4;padding:10px 14px;text-align:center';
-  d.innerHTML='⚠️ Tu versión del juego (<b>'+VERSION+'</b>) no es la del narrador (<b>'+verAnf+'</b>). '+
-    'Recarga esta página antes de jugar o los dados darán resultados inválidos. '+
-    '<button id="btnRecargaVer" style="margin-left:8px;padding:4px 10px;border:none;border-radius:5px;cursor:pointer">Recargar</button>';
+  d.innerHTML=mensaje+
+    ' <button id="btnRecargaVer" style="margin-left:8px;padding:4px 10px;border:none;border-radius:5px;cursor:pointer">Recargar ahora</button>';
   document.body.appendChild(d);
   document.getElementById('btnRecargaVer').onclick=()=>{
     const u=new URL(location.href); u.searchParams.set('v', Date.now()); location.replace(u.toString());
   };
 }
+/* Autochequeo al abrir la página: compara esta copia con la que está publicada
+   ahora mismo en el servidor. Detecta la caché vieja aunque nadie más se conecte
+   todavía (el aviso del saludo por PeerJS solo se ve cuando DOS dispositivos ya
+   se conectaron entre sí). Si no hay internet en ese instante, simplemente no
+   avisa nada: no bloquea el juego sin conexión. */
+function autochequeoVersion(){
+  fetch(location.pathname+'?_chk='+Date.now(), {cache:'no-store'})
+    .then(r=>r.text())
+    .then(txt=>{
+      const m=txt.match(/const VERSION\s*=\s*'([^']+)'/);
+      if(m && m[1] && m[1]!==VERSION){
+        avisoVersion('⚠️ Esta pestaña tiene la versión <b>'+VERSION+'</b>, pero el archivo publicado '+
+          'ahora es <b>'+m[1]+'</b>. Recarga antes de jugar o los dados y la mascota pueden fallar.');
+      }
+    })
+    .catch(()=>{});   // sin internet en este instante: no molestamos, se reintentará al conectar
+}
 function jugRecibe(msg){
   if(msg.t==='tuId'){ MI_ID=msg.id; ESTADO.escId=msg.escId;
-    if(msg.ver && msg.ver!==VERSION) avisoVersion(msg.ver);
+    if(msg.ver && msg.ver!==VERSION) avisoVersion('⚠️ Tu versión (<b>'+VERSION+'</b>) no es la del narrador (<b>'+msg.ver+'</b>).');
     if(typeof msg.fase!=='undefined') ESTADO.fase=msg.fase;
     const e=esc(); if(e) document.documentElement.style.setProperty('--acc',e.color);
     render();
@@ -2223,6 +2241,8 @@ function render(){
 
 /* ==================== INICIO ==================== */
 document.addEventListener('DOMContentLoaded',()=>{
+  autochequeoVersion();   // ¿esta copia coincide con lo publicado ahora mismo?
+  const etv=document.getElementById('etiquetaVersion'); if(etv) etv.textContent='versión '+VERSION;
   const inp=document.getElementById('inpCodigo');
   if(inp) inp.addEventListener('input',()=>{ inp.value=inp.value.toUpperCase(); });
 

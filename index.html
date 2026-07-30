@@ -288,7 +288,7 @@ const CARPETA_IMG = 'Imagenes';
 /* Versión del archivo. Súbela cada vez que publiques cambios: si un dispositivo
    quedó con una copia vieja en caché, el juego lo detecta y avisa en vez de
    fallar con números raros. */
-const VERSION = '13d-eden-grafo-1';
+const VERSION = '13d-eden-grafo-2';
 const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carisma:'Carisma', fe:'Fe'};
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
@@ -1222,6 +1222,14 @@ function pintarMapa(){
   const m=MAPAS[ESTADO.escId];
   if(!m){ cont.style.display='none'; return; }
   cont.style.display='block';
+  const e=esc();
+  if(e && e.grafo){
+    // Los escenarios con grafo no tienen un número fijo de escenas —varía según
+    // el camino que tomen los dados y las decisiones—, así que aquí se muestra
+    // solo el mapa, sin la barra de hitos (que asume un total fijo).
+    cont.innerHTML = `<div class="marco"><img src="${CARPETA_IMG}/${m.img}" alt="Mapa" onerror="this.style.display='none'"></div>`;
+    return;
+  }
   // número de escenas reales (para Babilonia depende de la ruta)
   const nEsc = escenasActuales().length;
   const hitos = m.hitos.slice(0, nEsc);

@@ -114,6 +114,8 @@ label{font-family:var(--disp);font-size:.72rem;letter-spacing:.18em;color:var(--
 .dado{width:64px;height:64px;border-radius:12px;background:var(--pergamino);color:#241a0d;display:flex;align-items:center;justify-content:center;font-size:2rem;font-family:var(--disp);font-weight:700;box-shadow:0 4px 0 rgba(0,0,0,.4), inset 0 -3px 0 rgba(0,0,0,.15)}
 .dado.d12{width:72px;height:72px;border-radius:16px;background:linear-gradient(135deg,var(--pergamino),#d8c9a8);border:2px solid var(--lampara);position:relative}
 .dado.d12::after{content:'d12';position:absolute;bottom:3px;right:6px;font-size:.5rem;color:#8a7040;font-weight:400;letter-spacing:0}
+.dado.d6{width:56px;height:56px;border-radius:12px;background:linear-gradient(135deg,var(--pergamino),#ded2b4);border:2px solid var(--lampara);position:relative}
+.dado.d6::after{content:'d6';position:absolute;bottom:2px;right:5px;font-size:.45rem;color:#8a7040;font-weight:400;letter-spacing:0}
 .dado.mascota{background:linear-gradient(135deg,#e8dcc0,#c9b896);border-color:#8fbf7a}
 .dado.mascota::after{content:'🐾';font-size:.6rem;bottom:2px;right:4px}
 .dado.girando{animation:girar .09s linear infinite}
@@ -227,12 +229,13 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
     <div><span class="ico" id="banIco"></span> <span class="nom" id="banNom"></span></div>
     <div style="display:flex;align-items:center;gap:12px">
       <button id="btnVoz" class="btn-audio" onclick="toggleVoz()" title="Leer la narración en voz alta">🔊 Narrar</button>
-      <span class="acto" id="banActo">Acto I</span>
+      <span class="acto" id="banActo">Capítulo I</span>
     </div>
   </div>
   <div id="barraAnfitrion" style="display:none;gap:8px;margin-top:10px;flex-wrap:wrap;justify-content:center">
     <button class="btn-audio" onclick="guardarYSalir()">💾 Guardar y salir</button>
     <button class="btn-audio" id="btnSkipGlobal" onclick="menuSkip()">⏭️ Saltar jugador</button>
+    <button class="btn-audio" onclick="anfPedirFinal()">🏁 Terminar la aventura</button>
   </div>
   <div id="mapaEscena"></div>
   <div id="tiraJug"></div>
@@ -252,7 +255,7 @@ details.guia summary{font-family:var(--disp);letter-spacing:.15em;font-size:.75r
         </div>
         <div style="font-size:.78rem;color:var(--arena);font-style:italic;margin-top:4px">Cuéntanos tu plan y luego tira los dados. Es opcional, pero le da vida a la historia.</div>
       </div>
-      <div class="dados"><div class="dado d12" id="dadoJug">?</div><div class="dado d12 mascota" id="dadoJugMasc" style="display:none">?</div></div>
+      <div class="dados"><div class="dado d6" id="dadoJug1">?</div><div class="dado d6" id="dadoJug2">?</div><div class="dado d12 mascota" id="dadoJugMasc" style="display:none">?</div></div>
       <div id="resDado"></div>
       <div id="botonesDado">
         <button class="btn secundario" id="btnMascota" style="display:none" onclick="jugLlamarMascota()"></button>
@@ -288,7 +291,7 @@ const CARPETA_IMG = 'Imagenes';
 /* Versión del archivo. Súbela cada vez que publiques cambios: si un dispositivo
    quedó con una copia vieja en caché, el juego lo detecta y avisa en vez de
    fallar con números raros. */
-const VERSION = '13d-eden-grafo-2';
+const VERSION = '15d-abierto-1';
 const NOM_ATR = {fuerza:'Fuerza', agilidad:'Agilidad', ingenio:'Ingenio', carisma:'Carisma', fe:'Fe'};
 const ARQUETIPOS = [
  {id:'lider', ico:'🪨', m:'El Líder', f:'La Líder', stats:{fuerza:1,agilidad:0,ingenio:1,carisma:2,fe:1},
@@ -335,443 +338,58 @@ function bonoTag(j, atr, tag){
 const ESCENARIOS = [
 /* ---------- 1. EDÉN ---------- */
 {id:'eden', ico:'🌿', color:'#7ba763', nom:'Al este del Edén', cita:'Génesis 3 y 4',
- desc:'La primera familia humana debe sobrevivir su primer año fuera del jardín. Cada decisión y cada tirada cambian el camino: no hay dos partidas iguales.',
+ desc:'La primera familia humana, recién expulsada del jardín, tiene que aprender a vivir en un mundo que ya no es un regalo hecho: hay que trabajarlo. No hay guion — el narrador y los jugadores inventan cada paso.',
  nomM:['Set','Noam','Quenan','Enós'], nomF:['Azura','Lía','Milca','Noela'],
- intro:'La espada de fuego brilla a sus espaldas. Delante, un valle desconocido: hermoso, pero indiferente. El sol cae y hay que decidirlo todo por primera vez: dónde vivir, qué comer, cómo seguir adelante.',
- grafo:true, inicio:'valle',
- /* Texto extra que se añade al final según lo que haya pasado en el camino
-    (no cambia CUÁL final se alcanza, solo lo enriquece con lo vivido). */
- extras:{
-  lazos_externos:'Y esta noche, junto al altar, no están del todo solos: en el horizonte brilla otra fogata — la de aquella familia que, en algún momento del año, decidieron no dejar pasar de largo. ',
-  aislados:'Han pasado este primer año solos, por decisión propia más de una vez; esta noche, mirando el único fuego encendido en kilómetros a la redonda, algunos se preguntan en silencio si el año que viene la respuesta será distinta. '
- },
- epilogo:'El primer año fuera del Edén ha terminado.\n\n{lista}\n\nLa puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes. La senda continúa.',
- nodos:{
+ aperturas:[
+  `La espada de fuego brilla a sus espaldas, sobre la puerta que ya no se abrirá. Delante, un valle que nadie ha nombrado todavía. El líder del grupo reúne a los demás antes de que caiga la tarde: hay que decidir dónde pasar la primera noche. El constructor ya calcula con la mirada qué piedras y qué ramas podrían sostener un techo; el pastor observa unas huellas de cabra monte arriba; la exploradora se ha adelantado unos pasos, escudriñando el horizonte en busca de agua; el escriba trata de fijar en la memoria cada detalle de este primer día, para que no se pierda; y quien cuida del grupo ya está repartiendo lo poco que queda de comer. Nadie ha decidido nada todavía. Esa es la primera decisión que les toca.`,
+  `Llevan ya varios días fuera del jardín, y el primer campamento —apenas cuatro postes y una lona de pieles— tiembla con el viento de la tarde. Se avecina algo: nubes oscuras al oeste, o quizás solo el hambre hablando por el cielo. El líder discute con el pastor si conviene moverse antes de que oscurezca; el constructor revisa, preocupado, si el refugio aguantará una tormenta de verdad; la exploradora ha vuelto de reconocer el terreno con noticias que aún no ha contado; el escriba anota, con una vara sobre tierra blanda, todo lo que han aprendido hasta ahora, por si hay que recordarlo; y quien cuida del grupo vela a los más pequeños, que ya sienten el frío de las noches sin templo. El primer gran desafío está por llegar. Nadie sabe todavía cuál será.`,
+  `El sol cae detrás de un peñasco que nadie reconoce, y la familia entera se detiene: han caminado más de lo previsto y ya no están seguros de poder volver sobre sus pasos. Alguien cree haber visto humo a lo lejos —¿otra gente, tan perdida como ellos? El líder pide calma y ordena hacer un alto; la exploradora insiste en subir al peñasco antes de que anochezca del todo; el pastor intenta reunir a los pocos animales que los siguen, inquietos; el constructor mide con los ojos las rocas, pensando si podrían servir de reparo esta misma noche; el escriba repasa mentalmente cada señal del camino recorrido; y quien cuida del grupo consuela a quienes ya no pueden dar un paso más. La noche va a caer sobre gente que todavía no tiene ni techo ni plan.`
+ ],
+ epilogo:'La primera etapa de esta historia llega aquí a su fin.\n\n{cierre}\n\n{lista}\n\nLa puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes. La senda continúa.'},
 
-  /* ================= ACTO 1 — LOS PRIMEROS DÍAS ================= */
-  valle:{acto:1, tit:'El valle desconocido', tipo:'tirada', atr:'ingenio', tag:'saber', pref:'escriba',
-   txt:'Hay que elegir dónde asentarse antes del anochecer. {n} estudia el terreno: un arroyo al norte, una cueva al este, una pradera abierta al sur.',
-   e:{txt:'{n} encuentra el lugar perfecto: una loma junto al arroyo, protegida del viento y con tierra suave. La familia respira aliviada.', next:'refugio'},
-   p:{txt:'{n} elige la loma junto al arroyo… aunque descubren tarde que el suelo es pedregoso. Servirá, pero arar costará el doble.', next:'refugio'},
-   f:{txt:'La discusión sobre el sitio consume la tarde. Acampan a la intemperie y la primera noche fuera del jardín es fría y larga.', next:'valle_dificil'}},
-
-  valle_dificil:{acto:1, tit:'La primera noche', tipo:'tirada', atr:'fuerza', tag:'campo',
-   txt:'La intemperie pasa factura: hace frío y no hay agua cerca. Antes de seguir, {n} tiene que encontrar deprisa un reparo, aunque sea provisional, mientras el resto tirita junto al fuego.',
-   e:{txt:'{n} da con un saliente de roca que corta el viento; no es gran cosa, pero basta para pasar la noche sin perder más calor del necesario. Al alba, todos siguen adelante con las fuerzas repuestas.', next:'refugio'},
-   p:{txt:'El reparo que encuentra {n} protege del viento, no del frío. La noche es larga, pero nadie enferma.', next:'refugio'},
-   f:{txt:'No hay reparo que valga esa noche. Amanecen ateridos y de mal humor, y el retraso les cuesta parte de la mañana siguiente.', next:'refugio'}},
-
-  refugio:{acto:1, tit:'El primer refugio', tipo:'tirada', atr:'fuerza', tag:'construir', pref:'constructor',
-   txt:'Nubes oscuras se acumulan en el horizonte. {n} dirige la construcción de un abrigo con ramas, piedra y barro antes de que llegue la tormenta.',
-   e:{txt:'Las manos aprenden rápido. El refugio queda firme y seco; cuando la lluvia azota esa noche, dentro solo se oye el tamborileo en el techo.', next:'provision'},
-   p:{txt:'El refugio resiste… casi todo. Una esquina gotea toda la noche y alguien duerme mojado, pero la familia está a salvo.', next:'provision'},
-   f:{txt:'El viento arranca el techo a medio armar. La tormenta llega antes de que haya nada firme en pie.', next:'refugio_emergencia'}},
-
-  refugio_emergencia:{acto:1, tit:'Refugio de emergencia', tipo:'tirada', atr:'ingenio', tag:'construir',
-   txt:'{n} tiene que improvisar algo, con lo que haya a mano, antes de que el agua lo empape todo.',
-   e:{txt:'Con pieles, ramas trenzadas y una determinación feroz, {n} arma un reparo de emergencia que aguanta lo peor de la tormenta. No es bonito, pero cumple.', next:'provision'},
-   p:{txt:'El reparo improvisado se sostiene a medias; alguien termina la noche empapado, pero nadie a la intemperie total.', next:'provision'},
-   f:{txt:'No hay tiempo ni material para nada firme. La familia entera pasa la tormenta apretujada bajo una peña, mojada hasta los huesos.', next:'provision'}},
-
-  provision:{acto:1, tit:'El pan de cada día', tipo:'tirada', atr:'agilidad', tag:'campo',
-   txt:'Las provisiones se acaban. {n} sale a buscar alimento: frutos silvestres, raíces, huevos… pero los animales ya no se acercan mansos como antes.',
-   e:{txt:'{n} vuelve al atardecer con el manto lleno: higos silvestres, raíces dulces y un panal abandonado. Esta noche hay banquete.', next:'agua'},
-   p:{txt:'{n} consigue frutos suficientes para hoy, aunque unas zarzas le dejan los brazos marcados. Mañana habrá que ir más lejos.', next:'agua'},
-   f:{txt:'Los frutos altos se escapan y una rama cede bajo su peso. {n} vuelve con las manos casi vacías y el orgullo magullado. Se reparte lo poco que hay.', next:'agua'}},
-
-  agua:{acto:1, tit:'La fuente', tipo:'tirada', atr:'ingenio', tag:'saber',
-   txt:'El arroyo cercano basta para beber, pero no para todo: hace falta un sitio fijo de agua limpia antes de que lleguen los calores. {n} explora la ribera buscando un manantial o un remanso seguro.',
-   e:{txt:'{n} encuentra un manantial de agua fresca escondido entre las rocas, a un paso corto del refugio. Nunca más tendrán que preocuparse por el agua.', next:'vecinos'},
-   p:{txt:'El único remanso decente queda un buen trecho a pie. Servirá, aunque cargar agua todos los días será tarea de todos.', next:'vecinos'},
-   f:{txt:'El arroyo se enturbia con las primeras lluvias y no hay manantial a la vista. Tendrán que hervir el agua y confiar en que alcance.', next:'vecinos'}},
-
-  vecinos:{acto:1, tit:'Los que pasan por el camino', tipo:'eleccion',
-   txt:'Un grupo pequeño de viajeros —parece otra familia, tan perdida como la de ustedes— acampa a la vista, río abajo. Nadie sabe aún si el mundo fuera del jardín se comparte o se disputa. ¿Qué hace la familia?',
-   ops:[
-    {t:'🤝 Acercarse y ofrecer lo poco que hay', atr:'carisma', tag:'animar',
-     e:{txt:'{n} camina hacia ellos con las manos abiertas. Hay recelo al principio, pero el pan compartido desarma más que cualquier palabra: intercambian noticias, semillas y la promesa de ayudarse si hace falta.', next:'siembra', flag:'lazos_externos'},
-     p:{txt:'El encuentro es cordial pero breve; se separan con un gesto de cabeza y poco más. Al menos ya no están solos en el mapa.', next:'siembra', flag:'lazos_externos'},
-     f:{txt:'{n} se acerca, pero el otro grupo malinterpreta el gesto y se aleja deprisa, asustado. La oportunidad se pierde, aunque queda claro que no son los únicos por aquí.', next:'siembra'}},
-    {t:'👀 Observar de lejos, con cautela', atr:'ingenio', tag:'sigilo',
-     e:{txt:'{n} vigila desde la distancia sin ser visto: son gente sencilla, tan cautelosa como ellos. Se van al amanecer sin cruzar palabra, pero la familia aprende algo del terreno con solo mirar cómo lo usan.', next:'siembra'},
-     p:{txt:'{n} los observa un rato, pero la curiosidad casi los delata. Se retiran a tiempo, con más preguntas que respuestas.', next:'siembra'},
-     f:{txt:'Un crujido de rama los delata; los viajeros levantan el campamento de golpe y desaparecen antes del alba. Quedan solos otra vez.', next:'siembra', flag:'aislados'}},
-    {t:'🚶 Evitarlos y seguir de largo', atr:'fe',
-     e:{txt:'La familia decide que aún no es momento de mezclarse con extraños. Se alejan en silencio, confiando en que la providencia decidirá cuándo cruzar caminos con otros.', next:'siembra', flag:'aislados'},
-     p:{txt:'Evitan el encuentro, aunque la decisión pesa más de lo esperado: la idea de no estar solos, tan cerca y tan lejos, ronda varias noches.', next:'siembra', flag:'aislados'},
-     f:{txt:'Al retirarse, alguien tropieza y el ruido delata su presencia. Los viajeros huyen alarmados, y la familia se queda con la incómoda sensación de haber sembrado miedo en lugar de paz.', next:'siembra', flag:'aislados'}}]},
-
-  /* ================= ACTO 2 — LAS PRIMERAS ESTACIONES ================= */
-  siembra:{acto:2, tit:'Espinos y cardos', tipo:'tirada', atr:'fuerza', tag:'construir',
-   txt:'"Con el sudor de tu rostro comerás pan." Llega el tiempo de arar por primera vez. {n} empuña la vara endurecida al fuego y enfrenta un suelo lleno de espinos.',
-   e:{txt:'Surco a surco, la tierra se abre. Al caer la tarde hay un campo sembrado, y las manos llenas de callos parecen casi un trofeo.', next:'rebano'},
-   p:{txt:'La mitad del campo queda sembrado; la otra mitad es una guerra contra las raíces. {n} termina agotado, pero mañana se continúa.', next:'rebano'},
-   f:{txt:'La vara se parte contra una raíz y los espinos cobran su precio en rasguños. Habrá que fabricar herramientas mejores y volver a empezar.', next:'rebano'}},
-
-  rebano:{acto:2, tit:'El rebaño', tipo:'tirada', atr:'fe', tag:'campo', pref:'pastor',
-   txt:'Un grupo de cabras montesas baja a beber al arroyo. Si lograran ganarse su confianza, habría leche y lana. {n} se acerca despacio, con paciencia y calma.',
-   e:{txt:'Horas de quietud dan fruto: una cabra come de la mano de {n}, y donde va una, van las demás. La familia tiene su primer rebaño.', next:'decision_noche'},
-   p:{txt:'Dos cabras jóvenes se quedan; el resto huye monte arriba. Es poco, pero es un comienzo.', next:'decision_noche'},
-   f:{txt:'Un movimiento brusco y el grupo entero se desvanece entre las rocas. {n} vuelve con las manos vacías y una lección de paciencia.', next:'rebano_perdido'}},
-
-  rebano_perdido:{acto:2, tit:'Tras el rastro', tipo:'tirada', atr:'agilidad', tag:'campo',
-   txt:'Sin leche ni lana no hay mucho margen: {n} tiene una última oportunidad de rastrear y recuperar al menos algunos animales antes de que oscurezca.',
-   e:{txt:'{n} sigue el rastro de pezuñas entre las peñas y da alcance a tres cabras rezagadas. No es el rebaño soñado, pero es un comienzo real.', next:'decision_noche'},
-   p:{txt:'{n} recupera una sola cabra, asustada y flaca. Habrá leche, poca, pero habrá.', next:'decision_noche'},
-   f:{txt:'Cae la noche sin rastro de ellas. La familia vuelve con las manos vacías: este año, la lana y la leche tendrán que esperar.', next:'decision_noche'}},
-
-  decision_noche:{acto:2, tit:'Ojos en la oscuridad', tipo:'eleccion',
-   txt:'A medianoche, el campamento se inquieta. Dos ojos brillan más allá de la fogata: un depredador ronda. ¿Qué hace la familia?',
-   ops:[
-    {t:'🔥 Ahuyentarlo con fuego', atr:'ingenio',
-     e:{txt:'{n} lanza ramas encendidas trazando un arco de chispas. La bestia retrocede ante ese sol pequeño y furioso, y no vuelve.', next:'enfermedad'},
-     p:{txt:'El fuego lo mantiene a raya toda la noche, pero nadie duerme. Al alba, la bestia se va… y el cansancio se queda.', next:'enfermedad'},
-     f:{txt:'Una rama encendida cae sobre la hierba seca. Apagan el conato a manotazos mientras la bestia se lleva lo que puede.', next:'enfermedad'}},
-    {t:'🪨 Plantarle cara', atr:'fuerza',
-     e:{txt:'{n} se yergue entre la bestia y el campamento, vara en mano, y su grito resuena en todo el valle. El depredador entiende el mensaje y desaparece.', next:'enfermedad'},
-     p:{txt:'La bestia se retira, pero no sin un zarpazo que rasga el manto de {n}. Un palmo más y habría sido la piel.', next:'enfermedad'},
-     f:{txt:'La bestia es más rápida: derriba a {n} de un empujón antes de huir. La familia pasa la noche curando el susto y algún rasguño.', next:'enfermedad'}},
-    {t:'🕯️ Velar por turnos y orar', atr:'fe',
-     e:{txt:'La familia se organiza en vigilias y {n} guía la oración junto al fuego. La serenidad se contagia; la bestia ronda, no encuentra descuido, y al alba ya no está.', next:'enfermedad'},
-     p:{txt:'Las vigilias funcionan, aunque el sueño interrumpido pasa factura. La bestia se marcha al tercer canto del gallo… si hubiera gallos aún.', next:'enfermedad'},
-     f:{txt:'{n} cabecea en la última guardia y la bestia ronda más cerca de lo que a nadie le gustaría admitir. El amanecer los encuentra despiertos y con los nervios de punta.', next:'enfermedad'}}]},
-
-  enfermedad:{acto:2, tit:'Fiebre en la noche', tipo:'tirada', atr:'fe', pref:'cuidador',
-   txt:'Uno de los pequeños amanece ardiendo en fiebre, y no hay templo ni médico al que acudir: solo hierbas, agua fresca y turnos de vela. {n} se hace cargo del cuidado mientras el resto sigue con las tareas del día.',
-   e:{txt:'Entre paños húmedos, infusiones de hierbas amargas y una paciencia inagotable, {n} logra que la fiebre ceda al segundo día. El pequeño vuelve a correr por el campamento como si nada.', next:'sequia'},
-   p:{txt:'La fiebre tarda tres días largos en ceder. {n} no se separa del enfermo ni una noche, y al final gana, aunque el cansancio se le nota en la cara durante semanas.', next:'sequia'},
-   f:{txt:'Nada de lo que prueba {n} baja la fiebre del todo. El susto deja una marca: a partir de ahora, cualquier tos alarma a toda la familia.', next:'enfermedad_grave'}},
-
-  enfermedad_grave:{acto:2, tit:'Contra el tiempo', tipo:'tirada', atr:'ingenio', pref:'escriba',
-   txt:'La fiebre no cede y no hay tiempo que perder: {n} rebusca en la memoria y en cada rincón del valle algo, lo que sea, que ayude — una raíz distinta, una corteza, cualquier remedio que no hayan probado.',
-   e:{txt:'Una corteza amarga que {n} recuerda haber visto cerca del arroyo resulta ser justo lo que hacía falta. La fiebre cede esa misma noche, y el alivio de la familia entera se siente casi físico.', next:'sequia'},
-   p:{txt:'El remedio que encuentra {n} no cura del todo, pero calma lo suficiente para que el cuerpo gane la batalla por su cuenta, aunque a paso de tortuga.', next:'sequia'},
-   f:{txt:'Nada funciona del todo; solo el tiempo, la vigilia y la oración terminan ganando esa guerra, varios días después de lo que cualquiera hubiera querido.', next:'sequia'}},
-
-  sequia:{acto:2, tit:'Semanas sin lluvia', tipo:'tirada', atr:'fe',
-   txt:'El cielo se queda seco semana tras semana justo cuando el campo más lo necesita. {n} guía a la familia en la difícil tarea de repartir el agua que queda entre las personas, los animales y el sembrado.',
-   e:{txt:'{n} organiza turnos de riego tan ajustados que ni una gota se desperdicia. Cuando por fin llueve, el campo apenas lo nota: ya estaba salvado.', next:'cosecha'},
-   p:{txt:'El reparto cuidadoso de {n} salva lo esencial, aunque parte del sembrado se pierde. La lluvia, cuando llega, llega justo a tiempo para lo que queda.', next:'cosecha'},
-   f:{txt:'A pesar de todo, la sequía se lleva su parte antes de que vuelva la lluvia. {n} lo intenta todo, pero hay batallas que ni la mejor fe gana sola.', next:'cosecha'}},
-
-  /* ================= ACTO 3 — EL PRIMER AÑO CUMPLIDO ================= */
-  cosecha:{acto:3, tit:'La nube de langostas', tipo:'tirada', atr:'ingenio',
-   txt:'El campo por fin verdea… y una nube baja de langostas aparece en el horizonte. {n} tiene poco tiempo para salvar la cosecha.',
-   e:{txt:'Humo verde de hierbas frescas, mantas sobre los brotes tiernos y toda la familia agitando ramas: la nube pasa de largo. La cosecha vive.', next:'reparto'},
-   p:{txt:'Salvan tres surcos de cada cuatro. Las langostas se llevan su parte, pero queda suficiente para el invierno… si se administra bien.', next:'reparto'},
-   f:{txt:'La nube desciende como una sola sombra, y no toda se va. Al día siguiente vuelve, más hambrienta.', next:'plaga_extendida'}},
-
-  plaga_extendida:{acto:3, tit:'La segunda oleada', tipo:'tirada', atr:'fuerza',
-   txt:'Es la última oportunidad de salvar lo que quede del campo antes de que no haya nada que salvar.',
-   e:{txt:'Con humo, ruido y los brazos ya curtidos de un año entero de trabajo, la familia logra espantarlas para bien esta vez. Queda menos de lo esperado, pero queda.', next:'reparto'},
-   p:{txt:'Salvan un rincón del campo, apenas. No alcanza para presumir, pero alcanza para no pasar hambre.', next:'reparto'},
-   f:{txt:'La segunda oleada termina lo que la primera empezó. El campo queda en rastrojo casi por completo, y el invierno que viene pesa sobre todos desde ya.', next:'reparto'}},
-
-  reparto:{acto:3, tit:'Repartir lo que hay', tipo:'eleccion',
-   txt:'Con la despensa contada, la familia se reúne junto al fuego. Hay que decidir cómo repartir el alimento hasta la próxima siembra.',
-   ops:[
-    {t:'⚖️ Racionar todos por igual', atr:'fe',
-     e:{txt:'{n} propone porciones iguales y predica con el ejemplo sirviéndose al último. Nadie protesta; el hambre compartida une más que el pan.', next:'visita'},
-     p:{txt:'El acuerdo se cumple… con algún gruñido de estómago y de carácter. Las semanas pasan lentas, pero pasan.', next:'visita'},
-     f:{txt:'Las porciones iguales no calman los ánimos desiguales. Una discusión agria deja la cena fría y los corazones también.', next:'visita'}},
-    {t:'🤲 Dar más a los más débiles', atr:'carisma', tag:'animar',
-     e:{txt:'{n} habla con tanta ternura de los pequeños y los cansados que nadie discute ceder su parte. Esa noche, el guiso sabe a algo parecido al jardín.', next:'visita'},
-     p:{txt:'Los fuertes aceptan comer menos, aunque a alguno se le nota el sacrificio en la cara. El amor cuesta, y se paga.', next:'visita'},
-     f:{txt:'"¿Y quién decide quién es débil?" La pregunta enciende una discusión que ni {n} logra apagar del todo. Se reparte, pero en silencio.', next:'visita'}}]},
-
-  visita:{acto:3, tit:'Quien llama a la puerta', tipo:'eleccion',
-   txt:'Con las provisiones ya contadas, alguien llama pidiendo hospitalidad para pasar la noche: un pariente lejano, o quizás uno de aquellos viajeros de principios de año. Compartir ahora significa tener menos para después.',
-   ops:[
-    {t:'🍞 Recibirlo y compartir la mesa', atr:'carisma', tag:'animar',
-     e:{txt:'{n} lo recibe como si fuera de la familia. La mesa rinde más de lo que debería, y lo que se comparte esa noche vuelve, de un modo u otro, antes de que acabe el invierno.', next:'reflexion', flag:'lazos_externos'},
-     p:{txt:'{n} comparte lo que hay, aunque las raciones de mañana quedan más flacas. Nadie se arrepiente, aunque a alguno le cueste no pensarlo dos veces.', next:'reflexion', flag:'lazos_externos'},
-     f:{txt:'La hospitalidad de {n} choca con las quejas de quienes cuentan cada grano. La cena termina en silencio incómodo, aunque el visitante duerme bajo techo.', next:'reflexion'}},
-    {t:'🚪 Ofrecer un techo, pero no la mesa', atr:'ingenio',
-     e:{txt:'{n} encuentra el equilibrio justo: un rincón seco para dormir, sin tocar las provisiones contadas. El visitante lo entiende y agradece igual; nadie sale perdiendo.', next:'reflexion'},
-     p:{txt:'El arreglo de {n} funciona, aunque incómodo: todos notan al huésped comer de su propio hato mientras ellos racionan el suyo.', next:'reflexion'},
-     f:{txt:'El visitante malinterpreta la mano tendida a medias y se marcha antes del amanecer, ofendido. {n} se queda con la duda de si hizo lo correcto.', next:'reflexion', flag:'aislados'}}]},
-
-  reflexion:{acto:3, tit:'Bajo las estrellas', tipo:'tirada', atr:'fe',
-   txt:'La noche antes del altar, alguien tiene que poner en palabras lo que este primer año ha sido: lo bueno, lo duro, lo que ya no está. {n} guía a la familia en ese primer intento de contar su propia historia.',
-   e:{txt:'Las palabras de {n} encuentran el tono justo entre el duelo y la gratitud. Por primera vez desde la puerta del jardín, la noche se siente más como un comienzo que como una pérdida.', next:'altar'},
-   p:{txt:'{n} lo intenta, aunque las palabras se le atragantan más de una vez. Nadie espera un discurso perfecto; alcanza con que sea sincero.', next:'altar'},
-   f:{txt:'{n} no encuentra las palabras esa noche, y el silencio se estira incómodo alrededor del fuego. A veces contar la historia también toma su tiempo.', next:'altar'}},
-
-  altar:{acto:3, tit:'El altar de piedra', tipo:'tirada', atr:'fe', pref:'lider',
-   txt:'Ha pasado un año. Sobre la loma, la familia apila piedras sin labrar para un altar. {n} presenta lo mejor de la primera cosecha como ofrenda.',
-   e:{txt:'', next:'fin_pleno'},
-   p:{txt:'', next:'fin_sencillo'},
-   f:{txt:'', next:'fin_costoso'}},
-
-  /* ================= FINALES ================= */
-  fin_pleno:{tipo:'fin',
-   txt:'El humo del altar sube recto hacia el cielo del atardecer. Ha sido un año de manos llenas de callos, y hoy un rebaño, un campo y un refugio firme sostienen a la familia entera. Nadie habla; no hace falta — fuera del jardín también se puede caminar con Dios.\n\n{lista}\n\n{extra}La puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes. La senda continúa.'},
-  fin_sencillo:{tipo:'fin',
-   txt:'El fuego del altar tarda en prender, como ha tardado casi todo este año. Lo que suben esta noche no son grandes riquezas, sino lo que de verdad cuesta: tiempo, sudor, alguna lágrima y la terquedad de seguir intentándolo. Es suficiente. Es más que suficiente.\n\n{lista}\n\n{extra}La puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes, paso a paso. La senda continúa.'},
-  fin_costoso:{tipo:'fin',
-   txt:'El altar de piedra se levanta sobre una loma que ha visto de todo este año: hambre, fiebre, sequía, noches sin dormir. El humo sube torcido por el viento, como torcido y difícil ha sido casi cada paso. Y aun así sube. Sobrevivir, este primer año, ya era la ofrenda.\n\n{lista}\n\n{extra}La puerta del jardín quedó atrás, pero la promesa de Génesis 3:15 camina con ustedes, incluso —sobre todo— en lo cuesta arriba. La senda continúa.'}
- }},
+/* ---------- 2. EL ARCA ---------- */
 {id:'arca', ico:'⛵', color:'#6b93b5', nom:'El Arca', cita:'Génesis 6 – 8',
- desc:'La familia de Noé construye el arca mientras el mundo se burla.',
+ desc:'La familia de Noé, entre la construcción de una nave imposible y la burla de un mundo que no cree en la lluvia. No hay guion — el narrador y los jugadores inventan cada paso.',
  nomM:['Sem','Cam','Jafet','Noé'], nomF:['Ema','Noela','Raquel','Sedeqa'],
- intro:'"Hazte un arca de madera resinosa…" Las medidas están dadas: 300 codos de largo, tres pisos, una puerta. Alrededor, un mundo violento que ríe. Dentro de la familia, un solo propósito.',
- escenas:[
-  {acto:1, tit:'Madera resinosa', tipo:'tirada', atr:'fuerza', tag:'construir',
-   txt:'Los árboles elegidos son gigantes. {n} organiza la tala y el arrastre de los troncos hasta el astillero improvisado.',
-   e:'Cuerdas, rodillos y buen pulso: los troncos llegan alineados como soldados. El esqueleto del arca empieza a dibujarse contra el cielo.',
-   p:'Los troncos llegan, pero uno rueda de más y aplasta las estacas del taller. Nada que no se repare… con medio día perdido.',
-   f:'Una cuerda revienta y el tronco mayor se desliza cuesta abajo hasta el barranco. Habrá que talar de nuevo, con más maña y menos prisa.'},
-  {acto:1, tit:'La viga y la brea', tipo:'tirada', atr:'ingenio', tag:'construir', pref:'constructor',
-   txt:'Una viga maestra cruje bajo el peso del segundo piso. {n} debe reforzarla y calafatear las juntas con brea por dentro y por fuera, como fue mandado.',
-   e:'{n} idea un refuerzo cruzado que deja la viga más firme que el roble original. La brea sella cada junta: ni una gota pasará.',
-   p:'La viga queda firme, pero la brea escasea y hay que recorrer medio valle para conseguir más. El sol no espera.',
-   f:'El refuerzo cede con un crujido que se oye hasta el pueblo. Nadie se lastima, pero las risas de los curiosos duelen casi como un golpe.'},
-  {acto:1, tit:'Los que ríen', tipo:'eleccion',
-   txt:'Una multitud se junta a mirar "la locura": un barco enorme a días del mar. Llueven burlas, y alguien lanza algo más que palabras.',
-   ops:[
-    {t:'🗣️ Responder con calma y dar testimonio', atr:'carisma', tag:'animar',
-     e:'{n} baja del andamio, se limpia las manos y habla sin alzar la voz: del diluvio que viene y de la puerta que sigue abierta. La mayoría ríe… pero algunos se van pensativos.',
-     p:'Las palabras serenas de {n} apagan las burlas por hoy. Mañana volverán, pero hoy se trabaja en paz.',
-     f:'Cada respuesta de {n} es recibida con más carcajadas. "¡El profeta del barco seco!" El corazón pesa más que los troncos.'},
-    {t:'🔨 Seguir trabajando sin responder', atr:'fe',
-     e:'{n} da la señal y los martillos responden por la familia. Hay algo en esa constancia silenciosa que incomoda a los burlones más que cualquier sermón; poco a poco se dispersan.',
-     p:'El trabajo continúa bajo la lluvia de burlas. Duelen, pero los clavos entran igual de derechos.',
-     f:'Un mozalbete trepa al andamio a hacer gracia, resbala, y hay que rescatarlo del barril de brea. Medio día perdido y la brea, arruinada.'}]},
-  {acto:2, tit:'La despensa del mundo', tipo:'tirada', atr:'ingenio', pref:'escriba',
-   txt:'"Recoge de todo alimento y almacénalo." {n} calcula raciones para la familia y para cada clase de animal: grano, heno, frutos secos, agua.',
-   e:'Tablillas, cuentas y previsión: cada bodega queda rotulada y cada ración, prevista. Hasta las jirafas tendrán su medida justa.',
-   p:'Los números cierran… apretados. Habrá comida para todos si nadie repite plato. {n} anota: "racionar desde el día uno".',
-   f:'Un error de cálculo deja el heno corto. Toca segar a marchas forzadas los últimos días, con la espalda doblada y el cielo oscureciendo.'},
-  {acto:2, tit:'Llegan de dos en dos', tipo:'tirada', atr:'fe', tag:'campo', pref:'pastor',
-   txt:'Y entonces sucede: por el valle bajan animales de toda especie, de dos en dos, guiados por una mano invisible. A {n} le toca acomodarlos y calmarlos dentro del arca.',
-   e:'{n} camina entre leones y palomas como quien camina entre ovejas. Cada animal encuentra su sitio; el arca se llena de un rumor tranquilo.',
-   p:'Casi todos entran en paz… menos los monos, que arman revuelo en la bodega del grano. Recuperar el orden cuesta una tarde entera.',
-   f:'Un buey se planta en la rampa y detrás de él se atasca media creación. Empujones, mugidos y un dedo machucado después, todos están dentro. Todos.'},
-  {acto:2, tit:'La última noche', tipo:'tirada', atr:'fe', pref:'lider',
-   txt:'El cielo se cierra como nunca. Afuera, las voces ya no se burlan: ahora golpean el casco. {n} reúne a la familia adentro para sostener la calma antes de que Dios cierre la puerta.',
-   e:'{n} habla de la promesa y no del miedo. Cuando la puerta se cierra —sin que mano humana la toque—, adentro hay paz. Afuera empieza la lluvia.',
-   p:'Las manos tiemblan, las voces no. La familia se abraza cuando el primer trueno sacude las cuadernas.',
-   f:'Los golpes en el casco arrancan lágrimas a los más jóvenes. {n} tarda en encontrar las palabras… hasta que la puerta se cierra sola, y el hecho habla por todos.'},
-  {acto:3, tit:'Agua adentro', tipo:'tirada', atr:'agilidad', tag:'construir',
-   txt:'Día veinte. El arca cabecea en un mar sin orillas y un hilo de agua serpentea en la bodega baja: una junta llora. {n} baja con brea caliente y estopa.',
-   e:'{n} encuentra la junta floja, la calafatea en plena sacudida y sale de la bodega empapado y sonriente. Ni una gota más.',
-   p:'La fuga queda sellada, pero el vaivén lanza a {n} contra un poste. El chichón durará más que la gotera.',
-   f:'El sello no agarra a la primera y el agua moja tres sacos de grano. A la segunda queda firme, pero habrá que secar grano durante días.'},
-  {acto:3, tit:'La cierva enferma', tipo:'tirada', atr:'ingenio', tag:'campo', pref:'cuidador',
-   txt:'Una cierva deja de comer y tiembla en su cubículo. Si el mal se extiende entre los animales, el arca entera peligra. {n} la atiende con lo que hay a bordo.',
-   e:'Agua tibia, hierbas de la despensa y noches en vela: la cierva se levanta al tercer día y come de la mano de {n}. El arca respira.',
-   p:'La cierva sana, pero contagia al macho, y las noches de vela se duplican. {n} termina agotado y victorioso.',
-   f:'Nada parece funcionar y hay que aislarla en la proa. Sobrevive apenas, flaca como una rama, y el susto deja a todos mirando de reojo a los demás animales.'},
-  {acto:3, tit:'El encierro', tipo:'eleccion',
-   txt:'Van meses a bordo. La misma madera, los mismos rostros, el mismo horizonte de agua. El desánimo se pasea por los pasillos como un animal más. ¿Cómo lo combate la familia?',
-   ops:[
-    {t:'🎶 Cantar juntos cada atardecer', atr:'carisma', tag:'animar',
-     e:'{n} arranca el primer canto y las voces se suman una a una. El arca entera —hasta los lobos— parece escuchar. El desánimo no sobrevive a la música.',
-     p:'Los cantos ayudan, aunque algunas noches las voces suenan más a deber que a gozo. Aun así, nadie falta.',
-     f:'El primer intento suena tan desafinado que provoca risas… y las risas, sin querer, terminan siendo el mejor remedio.'},
-    {t:'📜 Relatar las promesas de Dios', atr:'fe', tag:'saber',
-     e:'Cada noche, {n} relata: el Edén, la promesa de la descendencia, el pacto que vendrá. Los pequeños se duermen soñando con el arcoíris antes de saber que existirá.',
-     p:'Los relatos sostienen el ánimo, aunque las preguntas difíciles ("¿y los de afuera?") dejan silencios largos que solo el tiempo cerrará.',
-     f:'A mitad del relato, el balanceo marea al auditorio entero. La sesión termina antes de tiempo… se repondrá mañana, con el mar más calmado.'}]},
-  {acto:3, tit:'Ararat', tipo:'tirada', atr:'fe', pref:'lider',
-   txt:'Un crujido distinto: madera contra roca. El arca reposa. La paloma vuelve con una hoja de olivo y llega el día de abrir la puerta. {n} guía a la familia afuera, hacia un mundo lavado.',
-   e:'El primer paso sobre tierra firme tambalea y arranca risas. Levantan un altar, y sobre las nubes que se retiran aparece el arcoíris: el pacto, escrito en el cielo.',
-   p:'La montaña recibe a la familia con viento helado y piernas de marinero. Pero el altar se levanta, y el arcoíris no necesita buen clima para brillar.',
-   f:'La rampa cede en el último tramo y el desembarco es un tropel de animales y personas rodando ladera abajo. Nadie se lastima; todos ríen; el arcoíris los encuentra despeinados y vivos.'}],
- epilogo:'Un año y diez días después de entrar, la familia pisa un mundo nuevo. El arca queda en la montaña como testigo de madera.\n\n{lista}\n\n"Mientras la tierra permanezca, no cesarán siembra y cosecha…" (Gén 8:22). El arcoíris sella la promesa. La senda continúa.'},
+ aperturas:[
+  `El esqueleto de madera resinosa ya se levanta sobre la colina, tres pisos de vigas a la vista de todo el que pase por el camino —y muchos pasan solo para reírse. El líder de la familia reparte las tareas del día como cada mañana; el constructor discute con Noé mismo un detalle del casco que no termina de convencerlo; el pastor calcula, preocupado, cuántos animales más van a necesitar espacio; la exploradora ha ido río abajo a buscar brea y madera; el escriba lleva la cuenta de codos avanzados, de provisiones guardadas; y quien cuida del grupo atiende a alguien que se lastimó ayer con una herramienta. Fuera, alguien vuelve a gritar una burla desde el camino. Dentro, el trabajo no se detiene.`,
+  `El casco está casi terminado, pero el cielo empieza a comportarse de un modo que a nadie le gusta: nubes que no se van, un aire pesado que no había antes. Las burlas del pueblo se han vuelto más insistentes, casi nerviosas. El líder convoca una reunión urgente sobre qué falta por asegurar antes de que sea tarde; el constructor revisa por tercera vez la brea de las juntas; el pastor ya empieza a organizar el ganado más cercano, por si hay que actuar rápido; la exploradora vigila el horizonte con una inquietud que no sabe nombrar; el escriba repasa la lista de todo lo que aún no está listo; y quien cuida del grupo nota que los más pequeños duermen mal desde hace días. Algo se acerca. Todos lo sienten, aunque nadie lo diga en voz alta.`,
+  `La puerta del arca sigue abierta, pero no por mucho más tiempo: los animales entran en parejas, en tríos, en grupos que nadie termina de contar bien, y la familia entera trabaja contrarreloj para acomodarlos antes de que llegue la orden de cerrar. El líder dirige el tránsito de bestias como puede, entre balidos y aleteos; el constructor revisa que cada compartimento aguante el peso; el pastor es, hoy, la persona más ocupada de toda la nave; la exploradora hace un último recuento fuera, por si falta alguien o algo; el escriba anota nombres y números que después nadie tendrá tiempo de verificar; y quien cuida del grupo ya piensa en cómo van a alimentar y calmar a tantas criaturas asustadas, humanas y no, durante lo que se viene. La puerta espera. El cielo, también.`
+ ],
+ epilogo:'La primera etapa de esta historia llega aquí a su fin.\n\n{cierre}\n\n{lista}\n\n"Mientras la tierra permanezca, no cesarán siembra y cosecha…" (Gén 8:22). La senda continúa.'},
 
-/* ---------- 3. TIERRA PROMETIDA ---------- */
+/* ---------- 3. LA TIERRA PROMETIDA ---------- */
 {id:'tierra', ico:'🎺', color:'#c1793b', nom:'La Tierra Prometida', cita:'Josué 1 – 6',
- desc:'Espías en Jericó, el cruce del Jordán y la caída de la ciudad.',
+ desc:'Israel a las puertas de Jericó, entre el río, los muros y una promesa que hay que cruzar a pie. No hay guion — el narrador y los jugadores inventan cada paso.',
  nomM:['Salmón','Otniel','Segub','Yair'], nomF:['Acsa','Noa','Tirsa','Hogla'],
- intro:'"Sé valiente y fuerte." Cuarenta años de desierto terminan aquí, frente al Jordán crecido. Al otro lado, Jericó cierra sus puertas. Josué necesita ojos dentro de esa ciudad.',
- escenas:[
-  {acto:1, tit:'Las puertas de Jericó', tipo:'tirada', atr:'agilidad', tag:'sigilo', pref:'explorador',
-   txt:'Vestidos de comerciantes, hay que cruzar las puertas de Jericó entre carros y camellos, bajo la mirada de los guardias. {n} va al frente del grupo.',
-   e:'{n} elige el momento exacto: detrás de una caravana ruidosa de especias. Los guardias ni parpadean. Están dentro.',
-   p:'Un guardia los detiene… y los deja pasar tras revisar los bultos, quedándose "de impuesto" con un paño fino. Dentro, pero más pobres.',
-   f:'"¿De dónde dicen que vienen?" Las respuestas dudan y los guardias los siguen con la vista. Están dentro, pero marcados: habrá que moverse rápido.'},
-  {acto:1, tit:'Oídos en el mercado', tipo:'tirada', atr:'ingenio', tag:'saber', pref:'escriba',
-   txt:'En el mercado se habla de todo: del río crecido, de los muros, del miedo. {n} conversa, compra, escucha y arma el mapa invisible de la ciudad.',
-   e:'Entre higos y lana, {n} lo obtiene todo: turnos de guardia, estado de las puertas y una verdad enorme: "el corazón de esta ciudad ya se derritió de miedo" (Jos 2:11).',
-   p:'La información llega a medias: los turnos de la muralla norte, sí; los de la puerta, no. Suficiente para empezar, poco para confiarse.',
-   f:'Una pregunta de más y un mercader entrecierra los ojos: "Ustedes preguntan mucho para vender tan poco." Es hora de desaparecer entre la multitud.'},
-  {acto:1, tit:'La cuerda escarlata', tipo:'tirada', atr:'agilidad', tag:'sigilo',
-   txt:'Los soldados del rey peinan la ciudad: alguien los delató. Rahab los esconde bajo los tallos de lino de su azotea y, de noche, ofrece su ventana sobre la muralla. {n} baja primero por la cuerda.',
-   e:'La cuerda escarlata apenas se balancea. Uno a uno bajan como sombras y ganan los montes. Detrás queda la promesa: esa misma cuerda salvará la casa de Rahab.',
-   p:'A mitad del descenso, una antorcha dobla la esquina de la muralla. Quedan colgados, inmóviles, una eternidad… hasta que la luz pasa. Palmas ardidas, misión viva.',
-   f:'La cuerda cede un tramo y {n} cae los últimos codos sobre un tejado de cañas. El estrépito despierta perros y voces: la huida a los montes es una carrera con el corazón en la boca.'},
-  {acto:2, tit:'Ordenar el campamento', tipo:'tirada', atr:'carisma', tag:'animar', pref:'lider',
-   txt:'De vuelta, el informe enciende el campamento: "¡Dios ya nos dio la tierra!" Ahora hay que organizar a miles de familias para cruzar el Jordán detrás del Arca. {n} coordina las tribus.',
-   e:'Tribu por tribu, {n} asigna orden, distancia y señales. Cuando suena la voz de mando, un pueblo entero se mueve como un solo hombre.',
-   p:'El orden se logra… salvo por los rebaños de Rubén, que se mezclan con los de Gad y arman un nudo de balidos. Se resuelve, con paciencia y polvo.',
-   f:'Las familias impacientes se adelantan y la columna se desarma. Hay que detener todo, volver a formar y empezar de nuevo bajo el sol del mediodía.'},
-  {acto:2, tit:'El río detenido', tipo:'tirada', atr:'fe',
-   txt:'Los sacerdotes tocan el agua… y el Jordán se corta río arriba: un muro líquido detenido por la mano de Dios. El lecho queda seco, pero cruzar entre esas paredes de agua exige un corazón firme. {n} ayuda a pasar a los pequeños y a los ancianos.',
-   e:'{n} cruza una y otra vez, cargando niños que miran el muro de agua con la boca abierta. Su calma se contagia; el pueblo entero pasa cantando.',
-   p:'Una anciana se paraliza a mitad del cauce, y {n} tarda en convencerla de dar un paso más. Lo logra… justo cuando las rodillas de ambos ya no daban para más.',
-   f:'Un carro se atasca en el lodo del lecho y el miedo cunde: "¡el agua volverá!" {n} empuja con otros hasta sacarlo, gritando por encima del pánico. El agua no vuelve. La fe, sí.'},
-  {acto:2, tit:'Doce piedras', tipo:'tirada', atr:'fuerza', tag:'construir',
-   txt:'"Tomen doce piedras del cauce, una por tribu." A {n} le toca cargar la suya desde el lecho del río hasta Guilgal, para el memorial de las generaciones.',
-   e:'{n} elige una piedra enorme, la carga al hombro y la planta la primera. "Cuando sus hijos pregunten qué significan estas piedras…" — ya hay respuesta.',
-   p:'La piedra pesa más a cada paso y hay que descansar dos veces, pero llega a Guilgal. Torcida quedó; testimonio es.',
-   f:'A medio camino, la piedra resbala y por poco aplasta un pie. Entre dos la levantan de nuevo. El memorial también guardará esta historia… aunque nadie la cuente.'},
-  {acto:3, tit:'La marcha en silencio', tipo:'tirada', atr:'fe', pref:'pastor',
-   txt:'La orden es extraña: marchar alrededor de Jericó una vez al día, en silencio absoluto, seis días. Desde la muralla llueven insultos y provocaciones. {n} marcha en la fila exterior, la más expuesta.',
-   e:'Escupitajos, burlas, hasta cáscaras podridas: nada arranca una palabra de {n}. Su silencio es tan firme que, al cuarto día, los de la muralla ya no ríen: miran.',
-   p:'Al quinto día, un insulto contra las madres de Israel casi rompe el silencio de {n}. Casi. Los dientes apretados también son obediencia.',
-   f:'Una piedra lanzada desde lo alto roza a {n}, que trastabilla y suelta un grito ahogado. La fila se detiene un instante eterno… y sigue. El silencio se recompone, más caro y más valioso.'},
-  {acto:3, tit:'El séptimo día', tipo:'eleccion',
-   txt:'Séptimo día: siete vueltas. Al final, las trompetas y el grito. Josué asigna posiciones. ¿Dónde sirve el grupo?',
-   ops:[
-    {t:'🎺 Junto a los sacerdotes y las trompetas', atr:'fe',
-     e:'Siete vueltas con el sonido del cuerno vibrando en el pecho. Al grito del pueblo, la muralla no se derrumba: se desploma sobre sí misma, como si le quitaran los cimientos. {n} lo ve desde primera fila: esto es obra de Dios.',
-     p:'El polvo de la muralla caída envuelve al grupo entero; salen tosiendo, cubiertos de blanco, incrédulos y vivos.',
-     f:'Con el estruendo, {n} queda aturdido unos instantes, oídos zumbando, mientras el mundo cambia de forma. Unas manos amigas lo levantan: la ciudad está abierta.'},
-    {t:'🛡️ Cubrir los flancos de la retaguardia', atr:'agilidad', tag:'sigilo',
-     e:'{n} vigila cada sombra durante las siete vueltas. Cuando el muro cae, su sección de la columna entra en perfecto orden, sin un solo rezagado.',
-     p:'Un grupo de curiosos armados merodea la retaguardia; {n} los disuade con presencia y señas, sin romper la marcha. Tenso, pero limpio.',
-     f:'En el caos del derrumbe, dos jóvenes de la columna se extravían y {n} pierde un tiempo precioso en hallarlos entre el polvo. Los encuentra. Nadie falta.'}]},
-  {acto:3, tit:'La casa de la cuerda escarlata', tipo:'tirada', atr:'agilidad', pref:'explorador',
-   txt:'Una promesa pendiente: en el sector de la muralla que quedó en pie cuelga la cuerda escarlata. {n} guía al grupo entre los escombros para sacar a Rahab y a toda su familia.',
-   e:'{n} encuentra la casa intacta, como una isla en el derrumbe. Rahab abre la puerta con la familia reunida y lista: "Sabía que vendrían." Todos salen a salvo, hasta el abuelo y el gato.',
-   p:'La escalera de la casa está bloqueada por cascotes; hay que sacar a los pequeños por la ventana, uno a uno, contra reloj. Se logra. La promesa se cumple completa.',
-   f:'El humo y el polvo desorientan al grupo y los minutos pesan como años. Cuando por fin dan con la cuerda escarlata, {n} carga en brazos a la abuela de Rahab el último tramo. Cansados, tiznados… y fieles a la palabra dada.'}],
- epilogo:'Jericó ha caído sin que Israel empujara una sola piedra de su muralla. Rahab y su familia viven en medio del pueblo — y de su línea nacerá, siglos después, el Mesías (Mat 1:5).\n\n{lista}\n\n"Ni una sola palabra de todas las buenas promesas de Jehová falló" (Jos 21:45). La senda continúa.'},
+ aperturas:[
+  `El campamento de Sitim hierve de rumores: Josué ha pedido hombres y mujeres de confianza para cruzar el río antes que el resto y ver con sus propios ojos lo que espera del otro lado. El líder del grupo ha sido convocado a la tienda de los jefes esta misma mañana; el explorador ya tiene el manto listo para partir en cuanto se dé la orden; el constructor revisa balsas y cuerdas pensando en cómo se hará el cruce cuando llegue el momento; la pastora reúne al rebaño de la familia, que no puede quedarse atrás; la escriba repasa una vez más las palabras que Josué dirigió al pueblo hace unos días; y quien cuida del grupo prepara a los más pequeños para una marcha que promete ser larga. Jericó, dicen, tiene murallas que nadie ha visto caer nunca. Pronto lo sabrán de cerca.`,
+  `El Jordán corre crecido, desbordado por la temporada, y la orilla entera del campamento se ha vuelto una fila de gente esperando la señal para cruzar. El líder repite, otra vez, las instrucciones que llegaron de los sacerdotes: nadie debe acercarse al arca más de lo permitido. El constructor asegura los bultos y las herramientas para que el cruce no los pierda en la corriente; el explorador ya cruzó una vez, a escondidas, y sabe cosas que todavía no ha contado; la pastora intenta que el rebaño no entre en pánico frente al agua; la escriba anota la fecha, segura de que alguien, algún día, va a querer recordar este día exacto; y quien cuida del grupo no suelta la mano de quienes tienen más miedo. El agua, dicen, va a abrirse. Falta ver si lo creen del todo hasta que lo vean.`,
+  `Llevan ya un día entero rodeando Jericó en silencio, tal como se ordenó: ni un grito, ni una burla a los muros, solo el paso de la gente y el sonido de los cuernos de carnero. La ciudad los observa desde lo alto, cerrada a cal y canto. El líder marcha al frente de su gente, tratando de que el silencio no se rompa; el explorador conoce cada rincón de esas murallas mejor que nadie, de su visita anterior; el constructor no deja de estudiar la piedra, preguntándose cómo algo así podría caer; la pastora cuida que los animales no delaten con su ruido la disciplina del grupo; la escriba cuenta los días en su memoria, uno, van seis; y quien cuida del grupo sostiene el ánimo de quienes ya dudan que esto tenga sentido. Mañana, dicen, será distinto. Todavía no saben cuánto.`
+ ],
+ epilogo:'La primera etapa de esta historia llega aquí a su fin.\n\n{cierre}\n\n{lista}\n\n"Ni una sola palabra de todas las buenas promesas de Jehová falló" (Jos 21:45). La senda continúa.'},
 
-/* ---------- 4. BABILONIA ---------- */
+/* ---------- 4. CAMINOS DE BABILONIA ---------- */
 {id:'babilonia', ico:'🏛️', color:'#9a7cbf', nom:'Caminos de Babilonia', cita:'2 Reyes 25 · Daniel 1 · Esdras 1–3',
- desc:'La ida al destierro… o el regreso para reconstruir el templo. El grupo elige.',
+ desc:'Dos caminos separados por setenta años: el destierro que se lleva Jerusalén, y el regreso que la reconstruye. No hay guion — el narrador y los jugadores inventan cada paso.',
  nomM:['Azarías','Hananí','Serebías','Meremot'], nomF:['Susana','Yehudit','Ana','Noadías'],
- intro:'Dos caminos cruzan el mismo desierto, con setenta años de distancia: el que va de Jerusalén en llamas hacia Babilonia… y el que vuelve de Babilonia hacia una Jerusalén en ruinas. Elijan su camino.',
- ruta:true,
- rutas:[
-  {t:'⛓️ La ida — el destierro (607 a.e.c.)', clave:'A'},
-  {t:'🏠 El regreso — reconstruir (537 a.e.c.)', clave:'B'}],
- escenasA:[
-  {acto:1, tit:'La larga marcha', tipo:'tirada', atr:'fuerza',
-   txt:'Jerusalén humea a sus espaldas. Por delante, semanas de marcha hacia Babilonia. Entre los cautivos hay ancianos y niños que ya no pueden más. {n} carga lo que otros ya no pueden cargar.',
-   e:'{n} reparte pesos, improvisa una angarilla con dos lanzas prestadas y marca un paso que hasta los pequeños aguantan. Su columna no pierde a nadie.',
-   p:'Los hombros de {n} pagan el precio de cargar doble. Al llegar al campamento nocturno cae rendido… pero todos llegaron.',
-   f:'El calor vence a {n} a media tarde y otros deben cargarlo a él. La lección duele más que la insolación: también los fuertes necesitan ayuda.'},
-  {acto:1, tit:'Fiebre en la caravana', tipo:'tirada', atr:'ingenio', pref:'cuidador',
-   txt:'Una fiebre corre entre los cautivos y los guardias solo se encogen de hombros. Con agua racionada y sin hierbas conocidas, {n} improvisa cuidados en los altos del camino.',
-   e:'Paños húmedos por turnos, sombra bien administrada y caldo de lo que hay: la fiebre cede sin llevarse a nadie. Hasta un guardia trae, disimuladamente, un odre de agua extra.',
-   p:'Los enfermos mejoran, pero {n} termina contagiado y hace el siguiente tramo tiritando sobre un carro. Sanará; la caravana ya lo hizo.',
-   f:'La fiebre se extiende y la caravana debe detenerse un día entero, ganándose gritos de los guardias. Se supera, a fuerza de vigilias que dejan a todos con los ojos hundidos.'},
-  {acto:2, tit:'La mesa del rey', tipo:'tirada', atr:'ingenio', tag:'saber', pref:'escriba',
-   txt:'En Babilonia, los jóvenes de Judá son llevados al palacio para ser educados. La mesa ofrece manjares del rey… que la Ley no permite. Como Daniel, {n} debe proponer una alternativa con tacto (Dan 1:8).',
-   e:'"Pruébanos diez días con legumbres y agua." La propuesta de {n} es tan medida y respetuosa que el funcionario acepta. Diez días después, sus rostros lucen mejor que los de todos.',
-   p:'El funcionario acepta a regañadientes y a escondidas de sus superiores: "Si esto me cuesta la cabeza…" Habrá que cuidar los detalles cada día.',
-   f:'La primera propuesta suena a desprecio y el funcionario se ofende. Toca esperar, ganarse su confianza con semanas de conducta impecable… y volver a intentarlo mejor.'},
-  {acto:2, tit:'El idioma y la corte', tipo:'tirada', atr:'carisma', tag:'ciudad',
-   txt:'Arameo, protocolo, escritura cuneiforme: la corte exige todo y observa todo. {n} debe destacar en el examen ante los oficiales sin ocultar quién es ni a quién sirve.',
-   e:'{n} responde en un arameo pulido y, preguntado por su Dios, habla con tal claridad que el oficial anota algo largo en su tablilla. Respeto ganado sin negociar la fe.',
-   p:'El examen sale bien; la conversación posterior, regular: un cortesano se burla del "Dios invisible". {n} calla a tiempo. Hay batallas que se ganan no peleándolas.',
-   f:'Los verbos arameos traicionan a {n} en plena presentación y las risitas corren por la sala. Habrá más noches de estudio a la luz de la lámpara.'},
-  {acto:2, tit:'La imagen de oro', tipo:'tirada', atr:'fe',
-   txt:'Suena la música y toda la llanura se postra ante la imagen de oro. Todos… menos el grupo. Los ojos de los delatores brillan. {n} permanece de pie, a la vista de todos.',
-   e:'Rodillas firmes, mirada al frente. {n} y los suyos quedan de pie como columnas en un campo segado. Que venga lo que venga: hay cosas que no se negocian.',
-   p:'Las piernas de {n} tiemblan como cañas… pero no se doblan. Un oficial conocido pasa de largo fingiendo no verlos. Esta vez.',
-   f:'Los delatores los señalan a gritos y los guardias los arrastran ante el trono esa misma tarde. De pie siguen; el precio empieza a cobrarse.'},
-  {acto:3, tit:'La prueba pública', tipo:'tirada', atr:'fe', pref:'lider',
-   txt:'La acusación llega al rey: "Estos judíos no sirven a tus dioses." La sala del trono en silencio, el castigo listo. {n} responde por el grupo (como en Dan 3:16-18): con respeto, sin ceder.',
-   e:'"Nuestro Dios puede librarnos. Pero aunque no lo haga, no serviremos a tus dioses." La entereza de {n} deja al rey largo rato en silencio… y la sentencia se suspende. En Babilonia se empieza a hablar del Dios de Judá.',
-   p:'La voz de {n} se quiebra a la mitad… y se rehace. El rey, entre furioso y admirado, los degrada de la corte pero les perdona la vida. La fe queda intacta; la carrera palaciega, no. Buen cambio.',
-   f:'La sentencia se ejecuta: prisión y raciones de castigo. Y sin embargo, cada amanecer los encuentra orando junto a la ventana, como Daniel. Los guardias lo notan. Todos lo notan. Hay victorias que se ganan perdiendo.'}],
- escenasB:[
-  {acto:1, tit:'La lista de Ciro', tipo:'tirada', atr:'ingenio', tag:'saber', pref:'escriba',
-   txt:'El decreto de Ciro lo cambia todo: los que quieran pueden volver. {n} organiza la caravana familiar y el inventario de los utensilios sagrados que el rey devuelve (Esd 1:7-11).',
-   e:'Cada copa, cada fuente de oro y plata queda contada, envuelta y asignada a un portador. La lista de {n} es tan precisa que los oficiales persas la copian para sus archivos.',
-   p:'El inventario cierra… tras descubrir a tiempo que dos fuentes de plata habían quedado en un almacén equivocado. Un día de retraso; ningún faltante.',
-   f:'Los números no cuadran y hay que recontar todo ante un funcionario impaciente. Aparece el error (una tablilla mal leída), pero la caravana parte al alba siguiente, con sueño y sin margen.'},
-  {acto:1, tit:'El vado del gran río', tipo:'tirada', atr:'agilidad', pref:'explorador',
-   txt:'El primer gran río del camino baja crecido. Carros, ancianos, niños y utensilios sagrados deben cruzar. {n} busca el vado y guía el paso.',
-   e:'{n} encuentra un vado de grava firme, tiende una cuerda de orilla a orilla y el cruce entero parece un desfile. Ni un bulto mojado.',
-   p:'El vado sirve, pero un carro se atasca al final y hay que descargarlo a hombros, con el agua a la cintura. Todo cruza; todo gotea.',
-   f:'La corriente arrastra dos fardos de provisiones que se recuperan río abajo, embarrados. Nadie se pierde, pero esa noche la cena es escasa y la ropa, un tendedero.'},
-  {acto:2, tit:'El peaje de los bandidos', tipo:'tirada', atr:'carisma', pref:'lider',
-   txt:'La caravana no lleva escolta: "La mano de nuestro Dios está sobre los que lo buscan", se dijo al rey (Esd 8:22). En un desfiladero, hombres armados cierran el paso y exigen "peaje". {n} se adelanta a hablar.',
-   e:'{n} habla sin miedo y sin arrogancia: de dónde vienen, a qué van, y de quién los guarda. Algo en esa serenidad desarma más que las armas. Los hombres se apartan; uno, incluso, indica el mejor camino.',
-   p:'La palabra no basta sola: cuesta unos sacos de grano "de regalo". Caro, pero más barato que la sangre. La caravana pasa completa.',
-   f:'La negociación se tensa y los bandidos revuelven los carros… sin hallar el oro, oculto bajo el grano desde Babilonia (previsión bendita). Se llevan provisiones; la caravana se lleva la lección y sigue.'},
-  {acto:2, tit:'Enfermedad en el campamento', tipo:'tirada', atr:'ingenio', pref:'cuidador',
-   txt:'A dos meses de marcha, una fiebre de aguas malas recorre las tiendas. {n} organiza el cuidado: separar el agua, hervir, velar a los débiles.',
-   e:'{n} impone orden de campaña: agua hervida, enfermos a la sombra, sanos en turnos. En una semana la fiebre es solo un mal recuerdo y una buena costumbre nueva.',
-   p:'La fiebre cede, pero deja a varios tan débiles que la marcha se hace a medio paso durante días. Lentos, pero juntos.',
-   f:'El brote obliga a acampar una semana entera junto a un pozo amargo. Se pierde tiempo y peso, no personas. Cuando la caravana reanuda la marcha, hasta el desierto parece aliviado.'},
-  {acto:3, tit:'Piedra sobre piedra', tipo:'tirada', atr:'fuerza', tag:'construir', pref:'constructor',
-   txt:'Jerusalén, por fin… y es un montón de escombros con memoria. Antes que casas, el altar: hay que despejar el monte del templo y asentar las primeras piedras (Esd 3:2, 3). {n} dirige el trabajo.',
-   e:'Bajo las manos de {n}, el caos de cascotes se vuelve explanada y las piedras del altar encuentran su asiento exacto, sobre las bases antiguas. Está donde debe estar.',
-   p:'El trabajo avanza… hasta dar con una cisterna oculta bajo los escombros que casi traga un buey. Se rodea, se señaliza, se sigue. El altar se asienta al atardecer.',
-   f:'Una palanca se quiebra y la piedra mayor cae de canto, astillándose. Hay que buscar otra digna entre las ruinas — y aparece: una piedra del templo viejo. Nadie lo dice en voz alta, pero todos lo sienten: hasta los escombros vuelven a casa.'},
-  {acto:3, tit:'Lágrimas y júbilo', tipo:'tirada', atr:'fe',
-   txt:'El altar está listo. Se ofrece el primer sacrificio en setenta años, y el pueblo estalla: los jóvenes gritan de alegría y los ancianos, que recuerdan el templo anterior, lloran tan fuerte que nadie distingue un sonido del otro (Esd 3:12, 13). {n} eleva la acción de gracias.',
-   e:'La voz de {n} se abre paso entre el llanto y el júbilo, y por un momento ambos se vuelven una sola cosa: gratitud. El humo sube desde el mismo monte de Abrahán y de Salomón. Han vuelto a casa.',
-   p:'{n} apenas puede hablar; las palabras salen rotas, mezcladas con lágrimas propias. Nadie lo nota: hoy todas las voces están rotas, y todas dicen lo mismo.',
-   f:'El nudo en la garganta gana la primera batalla y otro debe comenzar el canto… hasta que la voz de {n} se suma, y luego todas. No importa quién empieza la alabanza; importa que no termine.'}],
- epilogo:'{rutaFin}\n\n{lista}\n\n"Los que siembran con lágrimas, con júbilo cosecharán" (Sal 126:5). La senda continúa.',
- finA:'En tierra extraña, sin templo y sin libertad, el grupo demostró que la fe no depende del lugar sino del corazón. En los archivos de Babilonia — y en otros archivos más altos — quedó escrito que en Judá hay un Dios al que su pueblo no cambia por nada.',
- finB:'Setenta años después del fuego, vuelve a subir humo del monte del templo: pero esta vez es humo de gratitud. Quedan murallas por levantar y vecinos que se opondrán, pero el altar está en pie, y con él, el pueblo.'},
+ aperturas:[
+  `Jerusalén arde a sus espaldas mientras la larga fila de cautivos avanza hacia el desierto, rumbo a Babilonia. Nadie sabe cuánto durará el camino, ni qué quedará de la ciudad cuando —si— alguna vez puedan volver. El líder del grupo trata de mantener unida a la gente que le queda cerca; el constructor carga, sin quejarse, lo que otros ya no pueden llevar; el explorador estudia el terreno buscando la ruta menos dura; la pastora vigila los pocos animales que sobrevivieron al saqueo; la escriba guarda en la memoria —porque no hay pergamino que cargar— cada palabra de los profetas que alcanzó a escuchar; y quien cuida del grupo reparte fuerzas, ánimo y el agua que va quedando. Setenta años, dijeron. Nadie en esa fila cree que vaya a vivir para verlo terminar.`,
+  `Babilonia se extiende ante ellos como nada que hayan visto antes: murallas, jardines, un zigurat que roza el cielo. Llevan ya un tiempo viviendo aquí, entre dos mundos, y hoy toca decidir cuánto de lo propio se conserva y cuánto se disimula. El líder ha sido llamado a hablar con funcionarios del palacio, otra vez; el escriba conoce ya las costumbres y la lengua de este lugar mejor que nadie del grupo; el constructor levanta, para su propia gente, algo parecido a un hogar en tierra ajena; la exploradora conoce atajos y rincones de la ciudad que casi nadie más pisa; el pastor cuida de mantener vivas las costumbres del rebaño y de la fe, aunque nadie mire; y quien cuida del grupo vela porque nadie olvide, en medio de la comodidad babilónica, quiénes son en realidad. Vivir aquí es fácil. Seguir siendo ellos mismos, no tanto.`,
+  `El edicto ha llegado y es real: se puede volver. La caravana se organiza entre la alegría y el miedo de dejar, otra vez, todo lo conocido —esta vez para regresar a una Jerusalén que muchos nunca vieron en pie. El líder coordina los primeros pasos del regreso con una emoción que no logra disimular; el constructor ya piensa en piedras, en cimientos, en un templo que hay que levantar de la nada; la exploradora se ofrece a ir por delante, marcando el camino de vuelta; la pastora reúne el ganado que hará el viaje con ellos; el escriba lleva consigo, esta vez sí, rollos y registros cuidadosamente guardados durante el destierro; y quien cuida del grupo ya piensa en los ancianos y los niños que el camino de regreso va a poner a prueba. Setenta años después, alguien por fin da la orden de volver.`
+ ],
+ epilogo:'La primera etapa de esta historia llega aquí a su fin.\n\n{cierre}\n\n{lista}\n\n"Los que siembran con lágrimas, con júbilo cosecharán" (Sal 126:5). La senda continúa.'},
 
-/* ---------- 5. MISIÓN ---------- */
+/* ---------- 5. MÁS ALLÁ DE ISRAEL ---------- */
 {id:'mision', ico:'⚓', color:'#4fa394', nom:'Más allá de Israel', cita:'Hechos 13 – 28',
- desc:'Misioneros del siglo I llevan las buenas nuevas a una ciudad gentil.',
+ desc:'Un grupo de discípulos lleva las buenas nuevas más allá de las fronteras conocidas, de puerto en puerto y de ciudad en ciudad. No hay guion — el narrador y los jugadores inventan cada paso.',
  nomM:['Silas','Lucio','Timoteo','Tito'], nomF:['Lidia','Febe','Priscila','Dámaris'],
- intro:'Antioquía despide al grupo con oración y provisiones. El destino: Filipos, colonia romana al otro lado del mar. El equipaje: un oficio en las manos, las Escrituras en la memoria y unas buenas nuevas que no caben en ningún fardo.',
- escenas:[
-  {acto:1, tit:'Un barco hacia Macedonia', tipo:'tirada', atr:'carisma', tag:'ciudad', pref:'lider',
-   txt:'En el puerto, los capitanes cobran caro y desconfían de pasajeros pobres. {n} negocia el pasaje del grupo ofreciendo trabajo a bordo a cambio de parte del precio.',
-   e:'{n} cierra trato con un capitán fenicio: pasaje por trabajo en cubierta y remiendo de velas — el oficio de hacer tiendas por fin da dividendos náuticos. Zarpan al alba.',
-   p:'El único capitán que acepta va cargado hasta la borda y hace tres escalas de más. Llegarán… tarde y oliendo a pescado en salmuera.',
-   f:'Dos capitanes se niegan y el tercero pide un precio absurdo. Toca esperar tres días en el puerto, trabajando en el mercado para no tocar el fondo común, hasta que aparece un barco honrado.'},
-  {acto:1, tit:'La tormenta', tipo:'tirada', atr:'fuerza',
-   txt:'A dos días de la costa, el cielo se vuelve de plomo y el mar, de montañas. El capitán grita órdenes; toda mano cuenta. {n} asegura la carga y ayuda a la tripulación (como en Hch 27).',
-   e:'{n} trinca la carga, refuerza la vela de tormenta y trabaja hombro a hombro con los marineros toda la noche. Al alba, el capitán le estrecha el brazo: "Tu Dios y tus manos, ambos sirven."',
-   p:'La carga queda firme, pero una ola barre la cubierta y {n} se salva agarrado a un cabo, tragando medio mar. Magullado y empapado, sigue en su puesto hasta el final.',
-   f:'Un fardo mal trincado rueda y golpea a {n} contra la borda. Los marineros lo ponen a salvo bajo cubierta, donde pasa la tormenta entre mareos… orando por los que siguen arriba. El barco resiste.'},
-  {acto:1, tit:'Calma tras la tempestad', tipo:'tirada', atr:'fe', pref:'pastor',
-   txt:'La tormenta pasó, pero el pasaje está deshecho: hay llantos, mercancía perdida y un marinero que jura no volver a embarcarse. {n} recorre la cubierta llevando calma y esperanza.',
-   e:'{n} escucha a cada uno, reparte el pan del grupo y termina contando, junto al mástil roto, quién es Aquel que calma mares. Esa noche, varios duermen en paz por primera vez… y preguntan más.',
-   p:'Las palabras ayudan a la mayoría; el marinero curtido solo gruñe. Pero al desembarcar, es él quien carga —sin que nadie se lo pida— el fardo más pesado del grupo.',
-   f:'El desánimo del pasaje es un muro… hasta que a {n} se le ocurre cantar bajito. Una voz se suma, luego otra. No fue un discurso lo que abrió la puerta: fue un salmo.'},
-  {acto:2, tit:'Oficio y hospedaje', tipo:'tirada', atr:'ingenio', tag:'ciudad',
-   txt:'Filipos: águilas romanas, foro de mármol y nadie que los conozca. Antes de predicar hay que comer: {n} busca trabajo y techo para el grupo — telas, tiendas, tinte de púrpura.',
-   e:'En el barrio de los tintoreros, {n} consigue taller y trastienda a cambio de trabajo fino. El oficio abre la puerta; la conducta la mantendrá abierta.',
-   p:'Hay trabajo, pero el techo es un altillo sobre las tinas de tinte: dormirán calientes y olerán a púrpura una semana entera. Nadie se queja… mucho.',
-   f:'Tres talleres cierran la puerta al acento extranjero. Al final los recibe una viuda a cambio de reparar su tejado primero. Trato justo: predicadores con las manos en la masa… y en las tejas.'},
-  {acto:2, tit:'Junto al río', tipo:'tirada', atr:'carisma', tag:'animar',
-   txt:'Sábado. Junto al río, fuera de la puerta, un grupo de mujeres se reúne a orar — entre ellas Lidia, comerciante de púrpura. {n} toma la palabra y anuncia las buenas nuevas (Hch 16:13, 14).',
-   e:'{n} habla del Mesías con tal claridad que Lidia no espera al final: "Si me consideran creyente, vengan a mi casa." La primera puerta de Europa se abre de par en par.',
-   p:'Las mujeres escuchan con interés y hacen preguntas difíciles; Lidia pide "seguir conversando el próximo sábado". La semilla está en tierra; falta la lluvia.',
-   f:'Los nervios enredan el arranque de {n}… hasta que deja el discurso y simplemente relata lo que ha visto. La sencillez logra lo que la elocuencia no: "vuelvan pronto", dicen. Y lo dicen de verdad.'},
-  {acto:2, tit:'Razonar en la sinagoga', tipo:'tirada', atr:'ingenio', tag:'saber', pref:'escriba',
-   txt:'En la sinagoga piden pruebas: "¿Dónde dicen las Escrituras que el Mesías debía sufrir?" Los rollos se abren sobre la mesa. {n} razona pasaje por pasaje (como en Hch 17:2, 3).',
-   e:'Isaías 53, el Salmo 22, Daniel 9: {n} hilvana las profecías como un tejedor sus hilos. Un anciano se quita las dudas como quien se quita un peso: "Toda mi vida leí esto… sin verlo."',
-   p:'La exposición convence a varios y enfurece a otros; el debate sube de tono hasta que el presidente de la sinagoga lo aplaza "para el próximo sábado". Hay puerta entreabierta y tormenta en el umbral.',
-   f:'Un opositor hábil enreda la discusión con preguntas trampa y {n} pierde el hilo ante todos. De camino a casa, repasa los rollos hasta la madrugada: la próxima vez, las respuestas estarán listas. Y habrá próxima vez.'},
-  {acto:3, tit:'La ciudad se agita', tipo:'tirada', atr:'fe',
-   txt:'El mensaje prospera… y toca intereses. Comerciantes del templo de la ciudad pierden clientela y agitan a la multitud: "¡Estos extranjeros alborotan nuestra ciudad!" La turba arrastra al grupo ante los magistrados. {n} mantiene al grupo sereno en medio del tumulto.',
-   e:'Golpes de la turba, gritos, acusaciones falsas: {n} responde con una calma que desconcierta más que cualquier defensa. Ni una palabra de odio sale del grupo. Los magistrados, presionados, los mandan a la cárcel "por alterar el orden": la serenidad, intacta, entra con ellos.',
-   p:'El miedo muerde y una rodilla tiembla, pero el grupo se mantiene unido y en silencio digno mientras los empujan a la cárcel. Perdieron la libertad por esta noche; la paz, no.',
-   f:'La turba zarandea al grupo y {n} recibe un golpe que lo dobla. Aun así, alcanza a sostener al más joven, que estaba por responder con los puños: "Así no." Entran a la cárcel doloridos… y limpios de culpa.'},
-  {acto:3, tit:'Cantos a medianoche', tipo:'tirada', atr:'carisma', tag:'animar',
-   txt:'Cepo en los pies, espalda dolorida, medianoche en la celda. Y entonces {n} hace lo impensable: empieza a cantar alabanzas (Hch 16:25). Los demás presos escuchan.',
-   e:'El canto de {n} llena el calabozo y corre por los pasillos. Los presos callan para oír; el carcelero se asoma sin entender qué clase de hombres cantan con los pies en el cepo. Cuando un temblor sacude los cimientos y abre las puertas, nadie huye — y esa noche, el carcelero y su casa preguntan cómo ser salvos.',
-   p:'La voz sale rota al principio, pero los himnos se sostienen hasta el alba. Un preso veterano murmura desde la oscuridad: "Cuando salgan, quiero saber de ese Dios." Saldrán. Y sabrá.',
-   f:'El primer canto se apaga en un calabozo hostil: "¡A dormir!" {n} baja la voz… y sigue, en un susurro que dura toda la noche. Al amanecer, el preso de la celda contigua tararea, sin saberlo, la melodía. Algo quedó sembrado.'},
-  {acto:3, tit:'Ante el magistrado', tipo:'eleccion',
-   txt:'Por la mañana, los magistrados ordenan soltarlos discretamente, como si nada hubiera pasado. Pero el arresto fue público e injusto, y la joven congregación quedaría marcada como criminal. ¿Cómo responde el grupo?',
-   ops:[
-    {t:'📜 Invocar los derechos de ciudadanía', atr:'ingenio', tag:'saber',
-     e:'"Nos azotaron públicamente sin juicio… ¿y ahora nos echan a escondidas?" El argumento legal de {n} (como en Hch 16:37) cae como un rayo: los magistrados, pálidos, vienen en persona a disculparse. La congregación queda públicamente limpia.',
-     p:'Los magistrados discuten, regatean y al final ofrecen una disculpa a medias, ante testigos suficientes. No es todo lo debido, pero la congregación ya no carga el estigma.',
-     f:'El magistrado más soberbio se niega a disculparse y solo concede un escrito seco de libertad. Menos de lo justo… pero por escrito. El documento protegerá a los hermanos cuando el grupo ya no esté.'},
-    {t:'🕊️ Aceptar la salida y despedirse en paz', atr:'fe',
-     e:'{n} decide que la mejor defensa de las buenas nuevas es no parecerse a sus acusadores. Salen en paz, pasan por casa de Lidia a fortalecer a los hermanos, y su mansedumbre se comenta en la ciudad más que el tumulto. Hay quien pregunta por ellos… para bien.',
-     p:'La salida discreta deja un sinsabor y algún hermano teme por el futuro. La reunión en casa de Lidia — oración, pan y planes — convierte el sinsabor en resolución.',
-     f:'Apenas salen, los mismos agitadores esparcen que "huyeron por culpables". Duele. Pero la conducta de la congregación, semana tras semana, desmiente el rumor mejor que mil pleitos. La verdad camina lento y llega lejos.'}]}],
- epilogo:'En la playa, la despedida: abrazos, lágrimas y encargos. En Filipos queda una congregación pequeña y firme — Lidia y su casa, el carcelero y la suya, los del río y los de la sinagoga — al cuidado de los hermanos locales.\n\n{lista}\n\n"Y las buenas nuevas seguían extendiéndose y prevaleciendo" (compárese Hch 19:20). La senda continúa.'}
+ aperturas:[
+  `El puerto huele a brea y a sal, y la nave que los llevará lejos de Israel ya carga las últimas provisiones. Nadie en el grupo ha viajado tan lejos antes. El líder repasa, una última vez, el propósito del viaje con quienes lo acompañan; el constructor revisa que el equipaje y los rollos vayan bien asegurados para la travesía; el explorador ya conversa con marineros, tratando de aprender todo lo que pueda sobre el rumbo y los puertos que vienen; la escriba guarda cartas de recomendación de la congregación que los envía; el pastor —de personas, ya no de rebaños— se asegura de que nadie del grupo quede atrás en el muelle; y quien cuida de todos reparte ánimo antes de que suba el ancla. El mar, dicen, puede ser tan generoso como cruel. Están a punto de averiguarlo.`,
+  `El barco atraca en un puerto extranjero, y la ciudad que se abre ante ellos habla una lengua, viste una moda y adora unos dioses que no son los suyos. El líder decide por dónde empezar a buscar un lugar de oración o una sinagoga; la escriba, que domina varias lenguas, ya negocia con los estibadores del puerto; el explorador se ofrece a recorrer la ciudad antes que nadie, para entender por dónde moverse con seguridad; el constructor busca alojamiento para el grupo, algo que puedan pagar; el pastor conversa con los primeros curiosos que se acercan, intentando ganarse su confianza; y quien cuida de todos vigila que nadie enferme tras la travesía. Es la primera ciudad de muchas. Nadie sabe todavía cómo los va a recibir.`,
+  `Llevan ya unos días instalados, y se acerca el primer sábado: la oportunidad de hablar en la sinagoga local, o junto al río, donde se reúne la gente de oración de la ciudad. El líder ensaya, nervioso, cómo presentar el mensaje sin ofender de entrada; el pastor ya conoce por nombre a varias personas del lugar, ganadas con paciencia; la escriba prepara los pasajes de las Escrituras que quiere citar; el explorador ha detectado ya quiénes, en la ciudad, podrían recibirlos bien y quiénes no; el constructor ha logrado un sitio fijo donde reunirse, aunque sea modesto; y quien cuida de todos repasa mentalmente qué hacer si las cosas se ponen difíciles. Todo lo que han sembrado hasta ahora está a punto de dar, o no, su primer fruto.`
+ ],
+ epilogo:'La primera etapa de esta historia llega aquí a su fin.\n\n{cierre}\n\n{lista}\n\n"Y las buenas nuevas seguían extendiéndose y prevaleciendo" (compárese Hch 19:20). La senda continúa.'}
 ];
 
 /* Frases de epílogo por arquetipo */
@@ -856,8 +474,9 @@ function narrar(texto, elem){
 /* ==================== DICTADO POR VOZ (acción del jugador) ==================== */
 const _SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 let _recon=null, _dictando=false;
-function dictarAccion(){
-  const inp=document.getElementById('inpAccion'), btn=document.getElementById('btnMic');
+function dictarAccion(inpId, btnId){
+  inpId=inpId||'inpAccion'; btnId=btnId||'btnMic';
+  const inp=document.getElementById(inpId), btn=document.getElementById(btnId);
   if(!inp||!btn) return;
   if(!_SR){ alert('Tu navegador no permite dictado por voz. Prueba con Chrome, o escribe tu acción.'); return; }
   if(_dictando){ if(_recon) _recon.stop(); return; }
@@ -1208,8 +827,8 @@ function pintarJugadores(turnoNombre){
 }
 
 /* ==================== MAPA DE LA HISTORIA ==================== */
-/* Hitos (paradas) por escenario. Cada uno tiene un ícono y una etiqueta corta.
-   El mapa marca cuáles ya se cruzaron según ESTADO.escIdx. */
+/* Ahora que no hay guion, el mapa solo se usa como ambientación visual
+   (ver pintarMapa). Los "hitos" quedan sin uso, pero no estorban. */
 const MAPAS = {
   eden:      {img:'mapa-eden.jpg', hitos:['🌄 El valle','🏕️ Refugio','🍇 Alimento','🌾 Arar','🐐 Rebaño','🔥 La noche','🦗 Langostas','⚖️ Reparto','🪨 El altar']},
   arca:      {img:'mapa-arca.jpg', hitos:['🌳 Madera','🛠️ La viga','😆 Burlas','🌾 Provisiones','🐾 Animales','🌩️ Última noche','💧 La fuga','🦌 La cierva','🎶 Encierro','🌈 Ararat']},
@@ -1222,30 +841,9 @@ function pintarMapa(){
   const m=MAPAS[ESTADO.escId];
   if(!m){ cont.style.display='none'; return; }
   cont.style.display='block';
-  const e=esc();
-  if(e && e.grafo){
-    // Los escenarios con grafo no tienen un número fijo de escenas —varía según
-    // el camino que tomen los dados y las decisiones—, así que aquí se muestra
-    // solo el mapa, sin la barra de hitos (que asume un total fijo).
-    cont.innerHTML = `<div class="marco"><img src="${CARPETA_IMG}/${m.img}" alt="Mapa" onerror="this.style.display='none'"></div>`;
-    return;
-  }
-  // número de escenas reales (para Babilonia depende de la ruta)
-  const nEsc = escenasActuales().length;
-  const hitos = m.hitos.slice(0, nEsc);
-  const idx = ESTADO.escIdx;  // escena actual (0-based); -1 = aún no empieza
-  let html='<div class="marco">';
-  html+=`<img src="${CARPETA_IMG}/${m.img}" alt="Mapa" onerror="this.style.display='none'">`;
-  html+='<div class="ruta">';
-  hitos.forEach((h,i)=>{
-    const partes=h.split(' ');
-    const ico=partes.shift(); const etq=partes.join(' ');
-    const clase = i<idx ? 'hecho' : (i===idx ? 'actual' : '');
-    if(i>0) html+=`<div class="conector ${i<=idx?'hecho':''}"></div>`;
-    html+=`<div class="hito ${clase}"><div class="punto">${i<idx?'✓':ico}</div><div class="etq">${etq}</div></div>`;
-  });
-  html+='</div></div>';
-  cont.innerHTML=html;
+  // Ningún escenario tiene ya un número fijo de turnos —el narrador decide cuándo
+  // termina la aventura—, así que aquí solo se muestra el mapa como ambientación.
+  cont.innerHTML = `<div class="marco"><img src="${CARPETA_IMG}/${m.img}" alt="Mapa" onerror="this.style.display='none'"></div>`;
 }
 
 /* ==================== GUARDAR Y SALIR ==================== */
@@ -1273,9 +871,9 @@ function menuSkip(){
     }
     return;
   }
-  if(enTurno && ESTADO.ui.modo==='eleccion'){
-    if(confirm(`${enTurno.nombre} está desconectado y le toca decidir. Se elegirá la primera opción por él/ella.`)){
-      anfAplicarEleccion(0);
+  if(enTurno && ESTADO.ui.modo==='accionLibre'){
+    if(confirm(`${enTurno.nombre} está desconectado y le toca actuar. ¿Que el narrador proponga la acción por él/ella?`)){
+      anfRecibirAccionLibre('', enTurno.id);
     }
     return;
   }
@@ -1292,9 +890,9 @@ let conexiones=[];   // (anfitrión) lista de DataConnection
 let connAnf=null;    // (jugador) conexión al anfitrión
 const ESTADO = {
   fase:'lobby',        // lobby | eligiendo | jugando | fin
-  escId:null, rutaElegida:null,
+  escId:null, aperturaIdx:0,
   jugadores:[],        // {id,nombre,genero,arqId,animo,conectado}
-  escIdx:-1, turnoIdx:0, actoActual:0,
+  turnoIdx:0, turnoNum:0, actoActual:0,
   banner:{ico:'',nom:''}, acto:'I',
   log:[],              // historial de mensajes para reconstruir en clientes
   ui:{modo:'espera', data:null}   // qué se le muestra al jugador en turno
@@ -1408,11 +1006,13 @@ function anfRecibe(conn, msg){
     if(j && ESTADO.fase!=='jugando'){ j.arqId=null; }
     refrescarLobby(); anfDifundir();
   }
-  else if(msg.t==='accion'){          // jugador escribió/dictó su acción
-    anfRegistrarAccion(msg.texto);
+  else if(msg.t==='accionLibre'){     // el jugador en turno propone libremente qué hace
+    if(ESTADO.ui && ESTADO.ui.modo==='accionLibre' && conn._pid===ESTADO.ui.jugId){
+      anfRecibirAccionLibre(msg.texto);
+    }
   }
-  else if(msg.t==='tirada'){          // jugador tiró su dado (1d12)
-    anfProcesarTirada(msg.dado, msg.dadoMascota||0);
+  else if(msg.t==='tirada'){          // jugador tiró sus dados (2d6 + 1d12 de mascota)
+    anfProcesarTirada(msg.dado, msg.dadoMascota||0, msg.d1, msg.d2);
   }
   else if(msg.t==='mascota'){         // el jugador en turno decide llamar a su mascota
     // Solo el jugador al que le toca puede invocarla, y solo antes de tirar.
@@ -1424,16 +1024,6 @@ function anfRecibe(conn, msg){
   else if(msg.t==='repetir'){
     anfRepetir();
   }
-  else if(msg.t==='eleccion'){        // jugador eligió una opción
-    anfAplicarEleccion(msg.idx);
-  }
-}
-function anfRegistrarAccion(texto){
-  if(!texto || !texto.trim()) return;
-  if(ESTADO._tirada) ESTADO._tirada.accion=texto.trim();
-  const j=ESTADO.jugadores.find(x=>x.id===(ESTADO._tirada&&ESTADO._tirada.jugId));
-  logPush('jugador','🗣️ '+(j?j.nombre:'Jugador'), texto.trim());
-  anfDifundir();
 }
 function anfDesconecta(conn){
   const j=ESTADO.jugadores.find(x=>x.id===conn._pid);
@@ -1476,11 +1066,6 @@ function refrescarLobby(){
 
 /* ==================== ANFITRIÓN: iniciar y motor del juego ==================== */
 function esc(){ return ESCENARIOS.find(e=>e.id===ESTADO.escId); }
-function escenasActuales(){
-  const e=esc();
-  if(e.ruta) return ESTADO.rutaElegida==='A'?e.escenasA:e.escenasB;
-  return e.escenas;
-}
 function logPush(clase,quien,texto,tit){
   ESTADO.log.push(tit?{clase,quien,texto,tit}:{clase,quien,texto});
   if(ESTADO.log.length>60) ESTADO.log=ESTADO.log.slice(-60);
@@ -1518,48 +1103,60 @@ function esperarElecciones(){
   const todos=ESTADO.jugadores.filter(j=>j.conectado);
   if(todos.length>=3 && todos.every(j=>j.arqId)) arrancarNarracion();
 }
-/* Activa un nodo/escena para que alguien actúe: descanso de acto si toca,
-   auxilio si está abatido, publica el texto y arma la tirada o la elección.
-   Compartido por el modo lineal (los 4 escenarios de siempre) y el modo
-   grafo (escenas con ramas reales, ver ESCENARIOS[].grafo). */
-function activarNodo(nodo){
-  if(nodo.acto!==ESTADO.actoActual) anfDescanso(nodo.acto);
-  const j=quienActua(nodo);
-  if(!j){ ESTADO.ui={modo:'espera',data:null}; anfDifundir(); return; }
+/* Arma el nuevo turno de quien le toca: sin guion, sin escena escrita de antemano.
+   Sencillamente le llega el turno a alguien y se le invita a proponer qué hace. */
+function abrirTurno(){
+  let pool=ESTADO.jugadores.filter(x=>x.conectado);
+  if(pool.length===0) pool=ESTADO.jugadores;
+  if(pool.length===0){ ESTADO.ui={modo:'espera',data:null}; anfDifundir(); return; }
+  const j=pool[ESTADO.turnoIdx%pool.length]; ESTADO.turnoIdx++;
+  ESTADO.turnoNum=(ESTADO.turnoNum||0)+1;
+  // Cada 4 turnos hay un pequeño descanso que refresca el ánimo del grupo —ya no
+  // hay "actos" fijos por guion, así que el ritmo lo marca el propio conteo de turnos.
+  if(ESTADO.turnoNum>1 && (ESTADO.turnoNum-1)%4===0) anfDescanso((ESTADO.actoActual||1)+1);
   if(j.animo<=0){
     const ayudante=ESTADO.jugadores.find(x=>x!==j&&x.animo>0&&x.conectado)||j;
     j.animo=1;
     logPush('sistema','🤝 Auxilio', `${j.nombre} estaba abatido; ${ayudante===j?'un momento de descanso':ayudante.nombre} lo reanima (+1 ❤️)`);
   }
-  logPush('narrador','📜 Narrador', nodo.txt.replaceAll('{n}',j.nombre), nodo.tit);
   ESTADO.turnoActual=j.id; ESTADO.turnoNombre=j.nombre;
-  if(nodo.tipo==='eleccion'){
-    ESTADO.ui={modo:'eleccion', jugId:j.id, jugNombre:j.nombre,
-      pide:nodo.txt.replaceAll('{n}',j.nombre),
-      ops:nodo.ops.map(o=>({t:o.t}))};
-    ESTADO._escenaPend=nodo;
-  }else{
-    prepararTiradaAnf(nodo, j, nodo);
-  }
+  ESTADO.ui={modo:'accionLibre', jugId:j.id, jugNombre:j.nombre};
   anfDifundir();
 }
-/* Cierra la aventura con un texto ya resuelto (usado por el modo grafo: cada
-   final es en sí mismo un nodo, así que puede haber varios finales distintos
-   según el camino recorrido, no solo uno fijo). */
+/* El jugador en turno (o el narrador, si está desconectado) propone libremente
+   qué hace su personaje. jugIdForzado se usa cuando el narrador actúa por alguien
+   ausente: en ese caso el cuadro de aprobación llega vacío y el narrador escribe
+   la acción él mismo, en vez de reescribir la de otro. */
+function anfRecibirAccionLibre(texto, jugIdForzado){
+  const jugId = jugIdForzado || ESTADO.turnoActual;
+  const j=ESTADO.jugadores.find(x=>x.id===jugId); if(!j) return;
+  if(texto && texto.trim()) logPush('jugador','🗣️ '+j.nombre, texto.trim());
+  ESTADO._tirada={jugId:j.id, accion:(texto||'').trim()};
+  pedirAprobacionNarrador(j);
+}
+/* Cierra la aventura con un texto ya armado (usado tanto por el cierre libre
+   que escribe el narrador como, si hiciera falta, por un cierre de respaldo). */
 function anfFinalizarConTexto(txtBase){
   const lista=ESTADO.jugadores.map(j=>{
     const a=ARQUETIPOS.find(x=>x.id===j.arqId);
     return `${a.ico} ${j.nombre}, ${j.genero==='m'?a.m.toLowerCase():a.f.toLowerCase()}, ${EPI_ARQ[j.arqId]}.`;
   }).join('\n');
-  let extra='';
   const e=esc();
-  if(e.extras){
-    for(const flag of (ESTADO.flags||[])){ if(e.extras[flag]){ extra=e.extras[flag]; break; } }
-  }
-  const epi=txtBase.replace('{lista}',lista).replace('{extra}',extra);
+  const epi=txtBase.replace('{lista}',lista);
   ESTADO.fase='fin'; ESTADO.epilogo=epi; ESTADO.finTitulo=e.nom;
   borrarPartidaGuardada();
   anfDifundir();
+}
+/* El narrador decide cuándo termina la aventura y escribe el cierre. */
+function anfPedirFinal(){
+  ESTADO.ui={modo:'cierre', data:null};
+  anfDifundir();
+}
+function anfFinalizarAbierta(textoCierre){
+  const cierre=(textoCierre&&textoCierre.trim()) || 'La historia se cierra aquí, tal como la contaron esta noche.';
+  const e=esc();
+  const epi=(e.epilogo||'{cierre}\n\n{lista}').replace('{cierre}', cierre);
+  anfFinalizarConTexto(epi);
 }
 function arrancarNarracion(){
   ESTADO._esperando=false;
@@ -1567,51 +1164,20 @@ function arrancarNarracion(){
   const e=esc();
   ESTADO.banner={ico:e.ico, nom:e.nom.toUpperCase()};
   ESTADO.log=[];
-  ESTADO.escIdx=-1; ESTADO.turnoIdx=0; ESTADO.actoActual=0;
-  ESTADO.nodoId=null; ESTADO.flags=[]; ESTADO.destino = e.grafo ? e.inicio : null;
-  logPush('narrador','📜 Narrador', e.intro);
-  if(e.ruta){ ESTADO.ui={modo:'ruta', data:null}; anfDifundir(); }
-  else { anfDifundir(); anfAvanzar(); }
+  ESTADO.turnoIdx=0; ESTADO.actoActual=0; ESTADO.turnoNum=0;
+  // Se elige al azar una de las 3 aperturas del escenario: no hay dos partidas
+  // iguales desde el primer párrafo.
+  ESTADO.aperturaIdx = Math.floor(Math.random()*e.aperturas.length);
+  logPush('narrador','📜 Narrador', e.aperturas[ESTADO.aperturaIdx]);
+  anfDifundir();
+  abrirTurno();
 }
-function anfAvanzar(){
-  const e=esc();
-  if(e.grafo){
-    const destId=ESTADO.destino;
-    const nodo=destId ? e.nodos[destId] : null;
-    if(!nodo){ anfFinalizarConTexto(e.epilogo); return; }   // red de seguridad: id inválido
-    if(nodo.tipo==='fin'){ anfFinalizarConTexto(nodo.txt); return; }
-    ESTADO.nodoId=destId;
-    activarNodo(nodo);
-    return;
-  }
-  const escenas=escenasActuales();
-  ESTADO.escIdx++;
-  if(ESTADO.escIdx>=escenas.length){ anfFinalizar(); return; }
-  activarNodo(escenas[ESTADO.escIdx]);
-}
-function anfElegirRuta(clave){
-  ESTADO.rutaElegida=clave;
-  const e=esc();
-  const t=e.rutas.find(r=>r.clave===clave).t;
-  logPush('sistema','🧭 Camino', t);
-  ESTADO.ui={modo:'espera',data:null};
-  anfDifundir(); anfAvanzar();
-}
-function quienActua(escena){
-  let j;
-  if(escena.pref) j=ESTADO.jugadores.find(x=>x.arqId===escena.pref && x.conectado);
-  if(!j){
-    // preferimos jugadores conectados; si no hay ninguno, usamos todos (el anfitrión tirará por ellos)
-    let pool=ESTADO.jugadores.filter(x=>x.conectado);
-    if(pool.length===0) pool=ESTADO.jugadores;
-    if(pool.length===0) return null;
-    j=pool[ESTADO.turnoIdx%pool.length]; ESTADO.turnoIdx++;
-  }
-  return j;
-}
+function anfAvanzar(){ abrirTurno(); }   // el botón "Continuar ➜" ya existente sigue llamando a esta función
 function anfDescanso(acto){
   ESTADO.actoActual=acto;
-  ESTADO.acto=['I','II','III'][acto-1];
+  // Ya no hay un tope de 3 actos por guion: la aventura puede durar lo que el
+  // narrador decida, así que el capítulo se numera sin límite.
+  ESTADO.acto = acto<=3 ? ['I','II','III'][acto-1] : String(acto);
   if(acto>1){
     ESTADO.jugadores.forEach(j=>{ j.animo=Math.min(3,j.animo+1); });
     let extra='';
@@ -1620,41 +1186,29 @@ function anfDescanso(acto){
       debil.animo=Math.min(3,debil.animo+1);
       extra=` El Bálsamo del Cuidador da 1 ❤️ extra a ${debil.nombre}.`;
     }
-    logPush('sistema','🌙 Descanso', `Comienza el Acto ${ESTADO.acto}. Todos recuperan 1 ❤️.`+extra);
+    logPush('sistema','🌙 Descanso', `Comienza el capítulo ${ESTADO.acto}. Todos recuperan 1 ❤️.`+extra);
   }
-}
-function prepararTiradaAnf(fuente, j, escOrig){
-  const {mod,notas}=modTotal(j, fuente.atr, fuente.tag||escOrig.tag);
-  ESTADO._tirada={jugId:j.id, atr:fuente.atr, tag:fuente.tag||escOrig.tag, e:fuente.e, p:fuente.p, f:fuente.f, mod, notas};
-  ESTADO.ui={modo:'tirada', jugId:j.id, jugNombre:j.nombre, atr:fuente.atr, mod, notas, estado:'porTirar'};
 }
 /* El anfitrión tira por un jugador (ausente o para no esperar): tira ambos dados del duelo */
 function anfTirarPorJugador(){
   const j=ESTADO.jugadores.find(x=>x.id===ESTADO._tirada.jugId);
   if(j) logPush('sistema','🎲 Dados', `El narrador tira por ${j.nombre}`);
   const usa=ESTADO._usaMascota;
-  anfProcesarTirada(1+Math.floor(Math.random()*12), usa?1+Math.floor(Math.random()*12):0);
-  anfTirarNarrador(1+Math.floor(Math.random()*12), usa?1+Math.floor(Math.random()*12):0);
+  const j1=1+Math.floor(Math.random()*6), j2=1+Math.floor(Math.random()*6);
+  anfProcesarTirada(j1+j2, usa?1+Math.floor(Math.random()*12):0, j1, j2);
+  const n1=1+Math.floor(Math.random()*6), n2=1+Math.floor(Math.random()*6);
+  anfTirarNarrador(n1+n2, usa?1+Math.floor(Math.random()*12):0, n1, n2);
 }
-function anfAplicarEleccion(idx){
-  const escena=ESTADO._escenaPend; if(!escena) return;
-  const op=escena.ops[idx];
-  const j=ESTADO.jugadores.find(x=>x.id===ESTADO.turnoActual);
-  logPush('sistema','🗳️ Decisión', op.t);
-  // En vez de ir directo a los dados, el narrador aprueba o ajusta la propuesta
-  prepararTiradaAnf(op, j, escena);
-  ESTADO._tirada.propuesta = op.t;  // lo que el jugador eligió
-  pedirAprobacionNarrador(j);
-}
-/* Muestra al narrador la propuesta del jugador para aprobarla o cambiarla */
+/* Muestra al narrador la propuesta libre del jugador: puede editarla y —ahora
+   que no hay guion— tiene que elegir con qué atributo se pone a prueba. */
 function pedirAprobacionNarrador(j){
   const T=ESTADO._tirada;
-  ESTADO.ui={modo:'aprobacion', jugId:T.jugId, jugNombre:j?j.nombre:ESTADO.turnoNombre,
-    atr:T.atr, mod:T.mod, propuesta:T.propuesta||'', accion:T.accion||''};
+  ESTADO.ui={modo:'aprobacion', jugId:T.jugId, jugNombre:j?j.nombre:ESTADO.turnoNombre, accion:T.accion||''};
   anfDifundir();
 }
-/* El narrador aprueba la propuesta (opcionalmente reescrita) y pasa a los dados */
-function anfAprobarAccion(textoAjustado){
+/* El narrador aprueba (o reescribe) la acción y elige el atributo; recién ahí
+   se calcula el modificador del personaje y se pasa a los dados. */
+function anfAprobarAccion(textoAjustado, atrElegido){
   const T=ESTADO._tirada; if(!T) return;
   const j=ESTADO.jugadores.find(x=>x.id===T.jugId);
   if(textoAjustado && textoAjustado.trim()){
@@ -1662,11 +1216,14 @@ function anfAprobarAccion(textoAjustado){
     T.accion=textoAjustado.trim();
     logPush('sistema','✒️ El narrador ajusta', textoAjustado.trim());
   }
+  T.atr = atrElegido || T.atr || 'ingenio';
+  const {mod,notas}=modTotal(j, T.atr, T.tag);
+  T.mod=mod; T.notas=notas;
   ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
     estado:'porTirar', accion:T.accion||''};
   anfDifundir();
 }
-function anfProcesarTirada(dado, dadoMascota){
+function anfProcesarTirada(dado, dadoMascota, d1, d2){
   const T=ESTADO._tirada; if(!T) return;
   // Red blindada: si llega un valor que no es número (versiones distintas, mensaje
   // corrupto), se avisa y no se sigue, en vez de producir NaN silencioso.
@@ -1676,54 +1233,55 @@ function anfProcesarTirada(dado, dadoMascota){
       'distinta del juego: pídele que recargue la página y vuelve a tirar.');
     anfDifundir(); return;
   }
+  // d1/d2 son las dos caras del 2d6 (solo para mostrarlas tal cual se tiraron).
+  // Si no llegan (dispositivo con una versión más vieja que solo manda el total),
+  // se reparte el total entre dos caras válidas para no romper el dibujo del dado.
+  if(!Number.isFinite(d1) || !Number.isFinite(d2)){
+    d1=Math.max(1,Math.min(6,dado-1)); d2=dado-d1;
+  }
   const usaMascota = ESTADO._usaMascota || false;
   const extra = usaMascota ? (Number.isFinite(dadoMascota)?dadoMascota:0) : 0;
   const totalJug=dado+extra+T.mod;
   const j=ESTADO.jugadores.find(x=>x.id===T.jugId);
   const a=j?ARQUETIPOS.find(x=>x.id===j.arqId):null;
   // El jugador ya tiró. Ahora falta que el NARRADOR tire su duelo.
-  ESTADO._duelo={ jugDado:dado, jugMascota:extra, jugMod:T.mod, jugTotal:totalJug, usaMascota,
+  ESTADO._duelo={ jugDado:dado, jugD1:d1, jugD2:d2, jugMascota:extra, jugMod:T.mod, jugTotal:totalJug, usaMascota,
                   arqId:j?j.arqId:null, mascotaNombre:a&&a.mascota?a.mascota.nombre:'' };
   ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
-    estado:'esperaNarrador', jugDado:dado, jugMascota:extra, jugTotal:totalJug, usaMascota,
+    estado:'esperaNarrador', jugDado:dado, jugD1:d1, jugD2:d2, jugMascota:extra, jugTotal:totalJug, usaMascota,
     arqId:j?j.arqId:null, mascotaNombre:a&&a.mascota?a.mascota.nombre:'',
     accion: T.accion||''};
   anfDifundir();
 }
 /* El narrador tira su dado (1d12) para el duelo; si hay mascota, también tira su dado extra */
-function anfTirarNarrador(dadoNarr, dadoNarrMascota){
+function anfTirarNarrador(dadoNarr, dadoNarrMascota, d1, d2){
   const T=ESTADO._tirada, D=ESTADO._duelo; if(!T||!D) return;
   if(!Number.isFinite(dadoNarr) || !Number.isFinite(D.jugTotal)){
     logPush('sistema','⚠️ Duelo inválido',
       'Falta el número de alguna tirada. Que todos recarguen la página y repite el turno.');
     anfDifundir(); return;
   }
+  if(!Number.isFinite(d1) || !Number.isFinite(d2)){
+    d1=Math.max(1,Math.min(6,dadoNarr-1)); d2=dadoNarr-d1;
+  }
   const extra = D.usaMascota ? (Number.isFinite(dadoNarrMascota)?dadoNarrMascota:0) : 0;
   const narrTotal = dadoNarr + extra;
-  D.narrDado=dadoNarr; D.narrMascota=extra; D.narrTotal=narrTotal;
+  D.narrDado=dadoNarr; D.narrD1=d1; D.narrD2=d2; D.narrMascota=extra; D.narrTotal=narrTotal;
   // Duelo: si el jugador iguala o supera al narrador, cumple.
   let clasif, cls, gano;
   if(D.jugTotal > narrTotal){ clasif='¡LO LOGRA!'; cls='exito'; gano='exito'; }
   else if(D.jugTotal === narrTotal){ clasif='LO LOGRA A DURAS PENAS'; cls='parcial'; gano='parcial'; }
   else { clasif='COMPLICACIÓN'; cls='fallo'; gano='fallo'; }
   D.clasif=clasif; D.cls=cls; D.gano=gano;
-  // Texto sugerido del guion según el resultado del duelo
-  // El campo e/p/f es texto plano en los 4 escenarios de siempre, y un objeto
-  // {txt, next, flag} en los escenarios con grafo (más ramas reales).
-  let campo;
-  if(gano==='exito') campo=T.e; else if(gano==='parcial') campo=T.p; else campo=T.f;
-  const esObjeto = campo && typeof campo==='object';
-  let sugerido = esObjeto ? campo.txt : campo;
-  if(esObjeto && campo.next!==undefined) D.siguienteNodo=campo.next;
-  if(esObjeto && campo.flag){
-    if(!ESTADO.flags) ESTADO.flags=[];
-    if(!ESTADO.flags.includes(campo.flag)) ESTADO.flags.push(campo.flag);
-  }
-  D.sugerido = (sugerido||'').replaceAll('{n}', ESTADO.turnoNombre);
+  // Ya no hay guion (e/p/f) del que sacar un texto sugerido: el narrador escribe
+  // el desenlace desde cero. Lo único que se le antepone es la mención de la
+  // mascota, si estaba en juego, como punto de partida para su redacción.
+  const lead = D.usaMascota && D.mascotaNombre ? `🐾 ${D.mascotaNombre} no se aparta de su lado. ` : '';
+  D.sugerido = lead;
   ESTADO.ui={modo:'tirada', jugId:T.jugId, jugNombre:ESTADO.turnoNombre, atr:T.atr, mod:T.mod, notas:T.notas,
     estado:'dueloResuelto',
-    jugDado:D.jugDado, jugMascota:D.jugMascota, jugTotal:D.jugTotal,
-    narrDado:dadoNarr, narrMascota:extra, narrTotal, usaMascota:D.usaMascota,
+    jugDado:D.jugDado, jugD1:D.jugD1, jugD2:D.jugD2, jugMascota:D.jugMascota, jugTotal:D.jugTotal,
+    narrDado:dadoNarr, narrD1:d1, narrD2:d2, narrMascota:extra, narrTotal, usaMascota:D.usaMascota,
     arqId:D.arqId||null, mascotaNombre:D.mascotaNombre||'',
     clasif, cls, gano, sugerido:D.sugerido, accion:T.accion||'',
     puedeRepetir: (ESTADO.jugadores.find(x=>x.id===T.jugId).animo>0 && gano==='fallo')};
@@ -1758,28 +1316,18 @@ function anfAceptarTirada(textoFinal){    // llamado por el anfitrión-narrador
   const T=ESTADO._tirada, D=ESTADO._duelo, j=ESTADO.jugadores.find(x=>x.id===T.jugId);
   if(!D) return;
   logPush('sistema','🎲 Duelo', `${j.nombre} ${D.jugTotal} vs Narrador ${D.narrTotal} — ${D.clasif}`);
-  const texto = (textoFinal && textoFinal.trim()) ? textoFinal.trim() : D.sugerido;
+  // Red de seguridad: si el narrador publica sin escribir nada (ni hay sugerido,
+  // ya que el guion no existe), no se manda un mensaje vacío a la mesa.
+  const texto = (textoFinal && textoFinal.trim()) ? textoFinal.trim()
+    : (D.sugerido && D.sugerido.trim()) ? D.sugerido.trim()
+    : `(${D.clasif.toLowerCase()})`;
   logPush('narrador','📜 Narrador', texto);
   if(D.gano==='fallo'){ j.animo=Math.max(0,j.animo-1);
     logPush('sistema','⚖️ Ánimo', `${j.nombre} pierde 1 ❤️${j.animo===0?' y queda abatido 😵':''}`); }
-  if(D.siguienteNodo!==undefined) ESTADO.destino=D.siguienteNodo;   // modo grafo: a dónde ir al continuar
   ESTADO._tirada=null; ESTADO._ultTirada=null; ESTADO._duelo=null;
   ESTADO.ui={modo:'continuar', data:null};
   anfDifundir();
 }
-function anfFinalizar(){
-  const e=esc();
-  const lista=ESTADO.jugadores.map(j=>{
-    const a=ARQUETIPOS.find(x=>x.id===j.arqId);
-    return `${a.ico} ${j.nombre}, ${j.genero==='m'?a.m.toLowerCase():a.f.toLowerCase()}, ${EPI_ARQ[j.arqId]}.`;
-  }).join('\n');
-  let epi=e.epilogo.replace('{lista}',lista);
-  if(e.ruta) epi=epi.replace('{rutaFin}', ESTADO.rutaElegida==='A'?e.finA:e.finB);
-  ESTADO.fase='fin'; ESTADO.epilogo=epi; ESTADO.finTitulo=e.nom;
-  borrarPartidaGuardada();  // la aventura terminó: ya no hay que retomarla
-  anfDifundir();
-}
-
 /* ==================== JUGADOR: unirse ==================== */
 let jugTmp={genero:'m', arqId:null};
 let _pantallaElegirMontada=false;
@@ -1921,62 +1469,73 @@ function jugLlamarMascota(){
   if(ROL==='anfitrion') anfActivarMascota();
   else jugEnviar({t:'mascota'});
 }
+/* El jugador en turno propone libremente qué hace su personaje (sin guion). */
+function jugProponerAccion(){
+  const inp=document.getElementById('inpAccionLibre');
+  const texto = inp ? inp.value.trim() : '';
+  if(!texto){ alert('Escribe o dicta qué hace tu personaje antes de continuar.'); return; }
+  const b=document.getElementById('btnProponer'); if(b) b.disabled=true;
+  if(ROL==='anfitrion') anfRecibirAccionLibre(texto); else jugEnviar({t:'accionLibre', texto});
+}
 function jugTirar(){
-  // Enviar primero la acción escrita/dictada del jugador (si escribió algo)
-  const inp=document.getElementById('inpAccion');
-  const accion = inp? inp.value.trim() : '';
-  if(accion){
-    if(ROL==='anfitrion') anfRegistrarAccion(accion);
-    else jugEnviar({t:'accion', texto:accion});
-  }
   const usaMascota = (ESTADO.ui && ESTADO.ui.usaMascota) || false;
-  // Dados calculados UNA vez (no dependen del DOM).
-  const resultado = 1+Math.floor(Math.random()*12);
+  // Dados calculados UNA vez (no dependen del DOM). Base: 2d6 (curva de campana,
+  // 2-12). Mascota: 1d12 aparte, sin curva, que se suma al total.
+  const d6a = 1+Math.floor(Math.random()*6);
+  const d6b = 1+Math.floor(Math.random()*6);
+  const resultado = d6a+d6b;
   const resMascota = usaMascota ? 1+Math.floor(Math.random()*12) : 0;
   const bt=document.getElementById('btnTirar'); if(bt) bt.disabled=true;
-  const el=document.getElementById('dadoJug');
-  const enviar=()=>{ if(ROL==='anfitrion') anfProcesarTirada(resultado,resMascota); else jugEnviar({t:'tirada', dado:resultado, dadoMascota:resMascota}); };
+  const el=document.getElementById('dadoJug1');
+  const enviar=()=>{ if(ROL==='anfitrion') anfProcesarTirada(resultado,resMascota,d6a,d6b); else jugEnviar({t:'tirada', dado:resultado, dadoMascota:resMascota, d1:d6a, d2:d6b}); };
   if(!el){ enviar(); return; }
   el.classList.add('girando');
+  const el2=document.getElementById('dadoJug2'); if(el2) el2.classList.add('girando');
   const em=document.getElementById('dadoJugMasc'); if(em) em.classList.add('girando');
   let ticks=0;
   const int=setInterval(()=>{
-    const e=document.getElementById('dadoJug'); if(e) e.textContent=1+Math.floor(Math.random()*12);
+    const e=document.getElementById('dadoJug1'); if(e) e.textContent=1+Math.floor(Math.random()*6);
+    const e1=document.getElementById('dadoJug2'); if(e1) e1.textContent=1+Math.floor(Math.random()*6);
     const e2=document.getElementById('dadoJugMasc'); if(e2) e2.textContent=1+Math.floor(Math.random()*12);
     if(++ticks>=10){
       clearInterval(int);
-      const f=document.getElementById('dadoJug'); if(f){ f.classList.remove('girando'); f.textContent=resultado; }
+      const f=document.getElementById('dadoJug1'); if(f){ f.classList.remove('girando'); f.textContent=d6a; }
+      const f1=document.getElementById('dadoJug2'); if(f1){ f1.classList.remove('girando'); f1.textContent=d6b; }
       const f2=document.getElementById('dadoJugMasc'); if(f2){ f2.classList.remove('girando'); f2.textContent=resMascota; }
       enviar();
       const b=document.getElementById('btnTirar'); if(b) b.disabled=false;
     }
   },90);
 }
-/* El narrador tira su dado (1d12) para el duelo; + dado de mascota si aplica */
+/* El narrador tira su base (2d6) para el duelo; + dado de mascota (1d12) si aplica */
 function narradorTira(){
   const bt=document.getElementById('btnTirarNarrador'); if(bt) bt.disabled=true;
   const usaMascota = (ESTADO._duelo && ESTADO._duelo.usaMascota) || false;
-  const resultado = 1+Math.floor(Math.random()*12);
+  const d6a = 1+Math.floor(Math.random()*6);
+  const d6b = 1+Math.floor(Math.random()*6);
+  const resultado = d6a+d6b;
   const resMascota = usaMascota ? 1+Math.floor(Math.random()*12) : 0;
-  const el=document.getElementById('dadoNarr');
-  if(!el){ anfTirarNarrador(resultado,resMascota); return; }
+  const el=document.getElementById('dadoNarr1');
+  if(!el){ anfTirarNarrador(resultado,resMascota,d6a,d6b); return; }
   el.classList.add('girando');
+  const el2=document.getElementById('dadoNarr2'); if(el2) el2.classList.add('girando');
   const em=document.getElementById('dadoNarrMasc'); if(em) em.classList.add('girando');
   let ticks=0;
   const int=setInterval(()=>{
-    const e=document.getElementById('dadoNarr'); if(e) e.textContent=1+Math.floor(Math.random()*12);
+    const e=document.getElementById('dadoNarr1'); if(e) e.textContent=1+Math.floor(Math.random()*6);
+    const e1=document.getElementById('dadoNarr2'); if(e1) e1.textContent=1+Math.floor(Math.random()*6);
     const e2=document.getElementById('dadoNarrMasc'); if(e2) e2.textContent=1+Math.floor(Math.random()*12);
     if(++ticks>=10){
       clearInterval(int);
-      const f=document.getElementById('dadoNarr'); if(f){ f.classList.remove('girando'); f.textContent=resultado; }
+      const f=document.getElementById('dadoNarr1'); if(f){ f.classList.remove('girando'); f.textContent=d6a; }
+      const f1=document.getElementById('dadoNarr2'); if(f1){ f1.classList.remove('girando'); f1.textContent=d6b; }
       const f2=document.getElementById('dadoNarrMasc'); if(f2){ f2.classList.remove('girando'); f2.textContent=resMascota; }
-      anfTirarNarrador(resultado,resMascota);
+      anfTirarNarrador(resultado,resMascota,d6a,d6b);
     }
   },90);
 }
 function jugRepetir(){ if(ROL==='anfitrion') anfRepetir(); else jugEnviar({t:'repetir'}); }
 function jugAceptar(){ if(ROL==='anfitrion') anfAceptarTirada(); /* jugador: el anfitrión narra; ver render */ }
-function jugElegir(idx){ if(ROL==='anfitrion') anfAplicarEleccion(idx); else jugEnviar({t:'eleccion', idx}); }
 
 /* ==================== RENDER (reacciona al ESTADO) ==================== */
 let _logDibujado=0, _uiFirma='';
@@ -2060,7 +1619,7 @@ function render(){
   irA('scrJuego');
   document.getElementById('banIco').textContent=ESTADO.banner.ico;
   document.getElementById('banNom').textContent=ESTADO.banner.nom;
-  document.getElementById('banActo').textContent='Acto '+ESTADO.acto;
+  document.getElementById('banActo').textContent='Capítulo '+ESTADO.acto;
   // Barra de anfitrión (guardar / skip) solo para el anfitrión
   const barra=document.getElementById('barraAnfitrion');
   if(barra) barra.style.display = (ROL==='anfitrion') ? 'flex' : 'none';
@@ -2100,54 +1659,56 @@ function render(){
   const miTurno = ui.jugId===MI_ID;
   const soyAnf = ROL==='anfitrion';
 
-  if(ui.modo==='ruta'){
-    // Solo el anfitrión elige la ruta de Babilonia
-    if(soyAnf){
-      zOps.classList.add('on');
-      document.getElementById('opsPide').textContent='El grupo elige su camino';
-      const cont=document.getElementById('opsBtns'); cont.innerHTML='';
-      esc().rutas.forEach(r=>{
-        const b=document.createElement('button'); b.className='btn secundario'; b.textContent=r.t;
-        b.onclick=()=>anfElegirRuta(r.clave); cont.appendChild(b);
-      });
-    }else{
-      zEspera.style.display='block'; zEspera.textContent='El anfitrión elige el camino…';
-    }
-    return;
-  }
-  if(ui.modo==='eleccion'){
+  if(ui.modo==='accionLibre'){
+    // No hay guion: el jugador en turno propone libremente qué hace.
     if(miTurno){
-      zOps.classList.add('on');
-      document.getElementById('opsPide').textContent='Te toca decidir';
-      const cont=document.getElementById('opsBtns'); cont.innerHTML='';
-      ui.ops.forEach((o,idx)=>{
-        const b=document.createElement('button'); b.className='btn secundario'; b.textContent=o.t;
-        b.onclick=()=>jugElegir(idx); cont.appendChild(b);
-      });
+      zEspera.style.display='block'; zEspera.innerHTML='';
+      const lbl=document.createElement('div');
+      lbl.innerHTML=`<b style="color:var(--acc)">Te toca a ti.</b> ¿Qué hace tu personaje?`;
+      lbl.style.marginBottom='8px'; zEspera.appendChild(lbl);
+      const fila=document.createElement('div'); fila.style.cssText='display:flex;gap:8px;align-items:stretch';
+      const ta=document.createElement('textarea'); ta.id='inpAccionLibre';
+      ta.placeholder='Escribe lo que quieres hacer… (o usa el micrófono)';
+      ta.style.cssText='flex:1;min-height:70px;background:var(--noche);border:1px solid var(--linea);border-radius:8px;color:var(--pergamino);font-family:var(--body);font-size:1rem;padding:10px;resize:vertical';
+      fila.appendChild(ta);
+      const bMic=document.createElement('button'); bMic.id='btnMicLibre'; bMic.title='Hablar tu acción';
+      bMic.style.cssText='flex-shrink:0;width:52px;background:transparent;border:1px solid var(--linea);color:var(--arena);border-radius:8px;font-size:1.3rem;cursor:pointer';
+      bMic.textContent='🎤'; bMic.onclick=()=>dictarAccion('inpAccionLibre','btnMicLibre');
+      if(!_SR) bMic.style.display='none';
+      fila.appendChild(bMic);
+      zEspera.appendChild(fila);
+      const bEnv=document.createElement('button'); bEnv.className='btn'; bEnv.id='btnProponer'; bEnv.style.marginTop='10px';
+      bEnv.textContent='Proponer acción ➜'; bEnv.onclick=jugProponerAccion;
+      zEspera.appendChild(bEnv);
     }else{
       const jt=ESTADO.jugadores.find(x=>x.id===ui.jugId);
       const desconectado = jt && jt.conectado===false;
       zEspera.style.display='block'; zEspera.innerHTML='';
       const txt=document.createElement('div');
       txt.innerHTML = desconectado
-        ? `⏳ Le toca decidir a <b style="color:var(--acc)">${ui.jugNombre}</b>, pero está desconectado.`
-        : `🗳️ <b style="color:var(--acc)">${ui.jugNombre}</b> decide qué hacer…`;
+        ? `⏳ Le toca actuar a <b style="color:var(--acc)">${ui.jugNombre}</b>, pero está desconectado. Usa "⏭️ Saltar jugador" arriba para proponer tú la acción.`
+        : `✍️ <b style="color:var(--acc)">${ui.jugNombre}</b> está pensando qué hacer…`;
       zEspera.appendChild(txt);
-      if(soyAnf){
-        // El anfitrión puede decidir en lugar del jugador ausente
-        const wrap=document.createElement('div'); wrap.style.marginTop='10px';
-        ui.ops.forEach((o,idx)=>{
-          const b=document.createElement('button'); b.className='btn secundario'; b.style.margin='4px';
-          b.textContent=(desconectado?'':'Elegir por '+ui.jugNombre+': ')+o.t;
-          b.onclick=()=>anfAplicarEleccion(idx); wrap.appendChild(b);
-        });
-        if(desconectado) zEspera.appendChild(wrap);
-        else {
-          const det=document.createElement('details'); det.style.marginTop='8px';
-          const sum=document.createElement('summary'); sum.style.cssText='cursor:pointer;color:var(--arena);font-size:.8rem'; sum.textContent='Decidir por este jugador (si no responde)';
-          det.appendChild(sum); det.appendChild(wrap); zEspera.appendChild(det);
-        }
-      }
+    }
+    return;
+  }
+  if(ui.modo==='cierre'){
+    // El narrador decidió terminar la aventura: escribe el cierre.
+    if(soyAnf){
+      zEspera.style.display='block'; zEspera.innerHTML='';
+      const lbl=document.createElement('div');
+      lbl.innerHTML='<b style="color:var(--acc)">Escribe cómo termina la historia.</b>';
+      lbl.style.marginBottom='8px'; zEspera.appendChild(lbl);
+      const ta=document.createElement('textarea'); ta.id='taCierre';
+      ta.style.cssText='width:100%;min-height:110px;background:var(--noche);border:1px solid var(--linea);border-radius:8px;color:var(--pergamino);font-family:var(--body);font-size:1rem;padding:10px;resize:vertical';
+      ta.placeholder='¿Cómo se cierra esta aventura para el grupo?';
+      zEspera.appendChild(ta);
+      const bPub=document.createElement('button'); bPub.className='btn'; bPub.style.marginTop='10px';
+      bPub.textContent='Publicar el final ➜';
+      bPub.onclick=()=>anfFinalizarAbierta(document.getElementById('taCierre').value);
+      zEspera.appendChild(bPub);
+    }else{
+      zEspera.style.display='block'; zEspera.textContent='El narrador está escribiendo el final de la aventura…';
     }
     return;
   }
@@ -2156,8 +1717,29 @@ function render(){
     if(soyAnf){
       zEspera.style.display='block'; zEspera.innerHTML='';
       const lbl=document.createElement('div');
-      lbl.innerHTML=`<b style="color:var(--acc)">${ui.jugNombre}</b> quiere: <i>"${ui.propuesta||ui.accion||'—'}"</i>`;
+      lbl.innerHTML=`<b style="color:var(--acc)">${ui.jugNombre}</b> quiere: <i>"${ui.accion||'—'}"</i>`;
       lbl.style.marginBottom='8px'; zEspera.appendChild(lbl);
+      const infoAtr=document.createElement('div');
+      infoAtr.style.cssText='color:var(--arena);font-size:.8rem;margin:8px 0 4px';
+      infoAtr.textContent='¿Con qué atributo se pone a prueba esta acción?';
+      zEspera.appendChild(infoAtr);
+      const filaAtr=document.createElement('div');
+      filaAtr.style.cssText='display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-bottom:10px';
+      let atrSel='ingenio';
+      const ATRS=[['fuerza','💪 Fuerza'],['agilidad','🏃 Agilidad'],['ingenio','🧠 Ingenio'],['carisma','🗣️ Carisma'],['fe','✝️ Fe']];
+      const botonesAtr=[];
+      const pintarAtr=()=>botonesAtr.forEach(b=>{
+        const on=b.dataset.atr===atrSel;
+        b.style.background = on? 'var(--acc)':''; b.style.color = on? '#1a1208':''; b.style.borderColor = on? 'var(--acc)':'';
+      });
+      ATRS.forEach(([id,etq])=>{
+        const b=document.createElement('button'); b.type='button'; b.className='btn secundario';
+        b.style.cssText='padding:6px 10px;font-size:.82rem'; b.textContent=etq; b.dataset.atr=id;
+        b.onclick=()=>{ atrSel=id; pintarAtr(); };
+        filaAtr.appendChild(b); botonesAtr.push(b);
+      });
+      pintarAtr();
+      zEspera.appendChild(filaAtr);
       const info=document.createElement('div');
       info.style.cssText='color:var(--arena);font-size:.85rem;margin-bottom:8px';
       info.textContent='Puedes aprobar esta acción tal cual, o escribir otra distinta para guiar la historia. Luego se tiran los dados.';
@@ -2168,9 +1750,9 @@ function render(){
       zEspera.appendChild(ta);
       const fila=document.createElement('div'); fila.style.cssText='display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;justify-content:center';
       const bOk=document.createElement('button'); bOk.className='btn'; bOk.textContent='✓ Aprobar y tirar dados';
-      bOk.onclick=()=>anfAprobarAccion('');
+      bOk.onclick=()=>anfAprobarAccion('', atrSel);
       const bCambio=document.createElement('button'); bCambio.className='btn secundario'; bCambio.textContent='✒️ Usar mi versión y tirar';
-      bCambio.onclick=()=>{ const v=document.getElementById('taAjuste').value; anfAprobarAccion(v); };
+      bCambio.onclick=()=>{ const v=document.getElementById('taAjuste').value; anfAprobarAccion(v, atrSel); };
       fila.appendChild(bOk); fila.appendChild(bCambio);
       zEspera.appendChild(fila);
     }else{
@@ -2193,11 +1775,9 @@ function render(){
       zDados.classList.add('on');
       document.getElementById('dadoPide').textContent=`Tu tirada: ${NOM_ATR[ui.atr]} (${f(ui.mod)})`+(ui.notas&&ui.notas.length?` · ${ui.notas.join(', ')}`:'');
       const bT=document.getElementById('btnTirar'), bR=document.getElementById('btnRepetir'), bA=document.getElementById('btnAceptar');
-      const campoAccion=document.getElementById('campoAccion');
       const djMasc=document.getElementById('dadoJugMasc');
       const bMasc=document.getElementById('btnMascota');
       if(ui.estado==='porTirar'){
-        if(campoAccion) campoAccion.style.display='block';  // mostrar campo para escribir/dictar
         if(djMasc) djMasc.style.display = ui.usaMascota ? 'flex' : 'none';
         // El jugador decide si llama a su mascota, antes de tirar. Una vez por turno.
         if(bMasc){
@@ -2213,17 +1793,17 @@ function render(){
           }
         }
         if(_uiFirma!==firma){
-          const dj=document.getElementById('dadoJug'); if(dj) dj.textContent='?';
+          const dj=document.getElementById('dadoJug1'); if(dj) dj.textContent='?';
+          const dj2=document.getElementById('dadoJug2'); if(dj2) dj2.textContent='?';
           if(djMasc) djMasc.textContent='?';
           document.getElementById('resDado').innerHTML = ui.usaMascota ? `<span style="color:#8fbf7a">🐾 ${ui.mascotaNombre||'Mascota'} en juego: tiras un dado extra</span>` : '';
-          const inp=document.getElementById('inpAccion'); if(inp) inp.value='';  // limpiar de turnos anteriores
         }
         bT.style.display='inline-block'; bR.style.display='none'; bA.style.display='none';
       }else{
-        // ya tiró: mostrar su dado y ocultar el campo de acción y el botón de mascota
-        if(campoAccion) campoAccion.style.display='none';
+        // ya tiró: ocultar el botón de mascota
         if(bMasc) bMasc.style.display='none';
-        const dj=document.getElementById('dadoJug'); if(dj) dj.textContent=ui.jugDado;
+        const dj=document.getElementById('dadoJug1'); if(dj) dj.textContent=ui.jugD1!==undefined?ui.jugD1:ui.jugDado;
+        const dj2=document.getElementById('dadoJug2'); if(dj2) dj2.textContent=ui.jugD2!==undefined?ui.jugD2:'';
         if(djMasc){ djMasc.style.display = ui.usaMascota ? 'flex' : 'none'; if(ui.usaMascota) djMasc.textContent=ui.jugMascota; }
         let html=`Tú: <b>${ui.jugDado}</b>`;
         if(ui.usaMascota) html+=` + 🐾<b>${ui.jugMascota}</b>`;
@@ -2257,14 +1837,17 @@ function render(){
       zDados.classList.add('on');
       // Se rotula de quién son estos dados: son los del JUGADOR, no los del narrador.
       document.getElementById('dadoPide').textContent=`Dados de ${ui.jugNombre} — ${NOM_ATR[ui.atr]} (${f(ui.mod)})`;
-      const dj=document.getElementById('dadoJug');
+      const dj=document.getElementById('dadoJug1');
+      const dj2b=document.getElementById('dadoJug2');
       const djMasc2=document.getElementById('dadoJugMasc');
       if(ui.estado==='porTirar'){
         if(dj) dj.textContent='?';
+        if(dj2b) dj2b.textContent='?';
         if(djMasc2) djMasc2.style.display = ui.usaMascota ? 'flex' : 'none';
         document.getElementById('resDado').innerHTML = ui.usaMascota ? `<span style="color:#8fbf7a">🐾 ${ui.mascotaNombre||'Mascota'} en juego</span>` : '';
       }else{
-        if(dj) dj.textContent=ui.jugDado;
+        if(dj) dj.textContent=ui.jugD1!==undefined?ui.jugD1:ui.jugDado;
+        if(dj2b) dj2b.textContent=ui.jugD2!==undefined?ui.jugD2:'';
         if(djMasc2){ djMasc2.style.display = ui.usaMascota ? 'flex' : 'none'; if(ui.usaMascota) djMasc2.textContent=ui.jugMascota; }
         let html=`${ui.jugNombre}: <b>${ui.jugTotal}</b>`;
         if(ui.estado==='dueloResuelto'){
@@ -2337,7 +1920,7 @@ function render(){
           txt.innerHTML=`<b style="color:var(--acc)">${ui.jugNombre}</b> sacó <b>${ui.jugTotal}</b>. ¡Ahora tira tú, narrador!`;
           zEspera.appendChild(txt);
           const dz=document.createElement('div'); dz.className='dados'; dz.style.marginTop='10px';
-          dz.innerHTML='<div class="dado d12" id="dadoNarr">?</div>'+(ui.usaMascota?'<div class="dado d12 mascota" id="dadoNarrMasc">?</div>':'');
+          dz.innerHTML='<div class="dado d6" id="dadoNarr1">?</div><div class="dado d6" id="dadoNarr2">?</div>'+(ui.usaMascota?'<div class="dado d12 mascota" id="dadoNarrMasc">?</div>':'');
           zEspera.appendChild(dz);
           const b=document.createElement('button'); b.className='btn'; b.id='btnTirarNarrador'; b.textContent = ui.usaMascota ? '🎲 Tirar dados del narrador (con mascota)' : '🎲 Tirar dado del narrador (1-12)';
           b.onclick=narradorTira; zEspera.appendChild(b);
